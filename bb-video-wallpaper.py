@@ -478,10 +478,6 @@ if __name__ == "__main__":
         pass
 
     else:
-        if task_exists():
-            run_task()
-            sys.exit()
-
 
         run_as_admin()
 
