@@ -38,7 +38,7 @@ CONFIG_PATH = APPDATA_DIR / "config.json"
 
 VLC_DIR = ROOT_DIR / "VLC"
 
-if VLC_DIR.exists():
+if VLC_DIR.is_dir():
     os.add_dll_directory(str(VLC_DIR))
     os.environ["PYTHON_VLC_LIB_PATH"] = str(VLC_DIR / "libvlc.dll")
     os.environ["PYTHON_VLC_MODULE_PATH"] = str(VLC_DIR)
@@ -49,6 +49,9 @@ if VLC_DIR.exists():
     except OSError:
         print("VLC 載入失敗")
         sys.exit(1)
+else:
+    print("找不到 VLC/")
+    sys.exit(1)
 
 import vlc
 
@@ -60,7 +63,7 @@ def run_as_admin():
 
     try:
         is_admin = ctypes.windll.shell32.IsUserAnAdmin()
-    except:
+    except Exception:
         is_admin = False
 
     if not is_admin:
@@ -95,19 +98,6 @@ def save_config(config):
         )
 
 
-def run_task():
-
-    subprocess.run(
-        [
-            "schtasks",
-            "/Run",
-            "/TN",
-            TASK_NAME
-        ],
-        creationflags=subprocess.CREATE_NO_WINDOW
-    )
-
-
 def create_task():
 
     cmd = [
@@ -118,6 +108,23 @@ def create_task():
         "/SC", "ONLOGON",
         "/RL", "HIGHEST",
         "/F"
+    ]
+
+    subprocess.run(
+        cmd,
+        check=True,
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
+
+    cmd = [
+        "powershell",
+        "-Command",
+        f"""
+        $task = Get-ScheduledTask -TaskName '{TASK_NAME}'
+        $task.Settings.DisallowStartIfOnBatteries = $false
+        $task.Settings.StopIfGoingOnBatteries = $false
+        Set-ScheduledTask -InputObject $task
+        """.strip()
     ]
 
     subprocess.run(
@@ -181,10 +188,10 @@ def create_workerw(parent_hwnd):
         wc.lpszClassName = "WorkerW"                                                                          # type: ignore
         wc.style = win32con.CS_VREDRAW | win32con.CS_HREDRAW                                                  # type: ignore
         wc.lpfnWndProc = lambda hwnd, msg, wParam, lParam: win32gui.DefWindowProc(hwnd, msg, wParam, lParam)  # type: ignore
-        class_atom = win32gui.RegisterClass(wc)
+        win32gui.RegisterClass(wc)
 
     except Exception:
-        # 如果 WorkerW 類別已經被註冊過, 直接無視錯誤
+        # WorkerW 類別可能已經註冊, 直接忽略即可
         pass
 
 
@@ -288,7 +295,7 @@ class Wallpaper(QWidget):
         super().__init__()
 
 
-        self.current_video = ""
+        self.current_video: Path | None = None
         videos = get_videos()
         config = load_config()
         recent = config.get("recentVideo")
@@ -486,7 +493,7 @@ class Tray:
 
 if __name__ == "__main__":
 
-    if not "--task" in sys.argv:
+    if "--task" not in sys.argv:
         # 不是工作排程啟動
         run_as_admin()
 
