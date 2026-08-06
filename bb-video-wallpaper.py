@@ -40,6 +40,8 @@ VLC_DIR = ROOT_DIR / "VLC"
 
 if VLC_DIR.exists():
     os.add_dll_directory(str(VLC_DIR))
+    os.environ["PYTHON_VLC_LIB_PATH"] = str(VLC_DIR / "libvlc.dll")
+    os.environ["PYTHON_VLC_MODULE_PATH"] = str(VLC_DIR)
 
     try:
         ctypes.CDLL(str(VLC_DIR / "libvlccore.dll"))
@@ -484,32 +486,28 @@ class Tray:
 
 if __name__ == "__main__":
 
-    if "--task" in sys.argv:
-        # 已經是工作排程啟動
-        pass
-
-    else:
-
+    if not "--task" in sys.argv:
+        # 不是工作排程啟動
         run_as_admin()
 
 
-        # 建立 Qt 應用程式
-        app = QApplication(sys.argv)
+    # 建立 Qt 應用程式
+    app = QApplication(sys.argv)
 
-        # 建立播放器
-        w = Wallpaper()
-        w.show()
+    # 建立播放器
+    w = Wallpaper()
+    w.show()
 
-        # 塞進 Windows 桌布層
-        w.attach_to_desktop()
+    # 塞進 Windows 桌布層
+    w.attach_to_desktop()
 
-        # 開始播放
-        if w.current_video:
-            QTimer.singleShot(100, w.player.play)
-
-
-        tray = Tray(app, w)
+    # 開始播放
+    if w.current_video:
+        QTimer.singleShot(100, w.player.play)
 
 
-        # Qt 主迴圈
-        sys.exit(app.exec())
+    tray = Tray(app, w)
+
+
+    # Qt 主迴圈
+    sys.exit(app.exec())
