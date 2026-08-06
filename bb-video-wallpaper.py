@@ -379,6 +379,7 @@ class Tray:
         menu = QMenu()
 
         play_action = QAction("播放", menu)
+        pause_action = QAction("暫停", menu)
         stop_action = QAction("停止", menu)
         exit_action = QAction("退出", menu)
 
@@ -391,6 +392,7 @@ class Tray:
         startup_action.setChecked(task_exists())
 
         play_action.triggered.connect(self.play)
+        pause_action.triggered.connect(self.pause)
         stop_action.triggered.connect(self.stop)
         exit_action.triggered.connect(self.exit)
 
@@ -400,6 +402,7 @@ class Tray:
 
 
         menu.addAction(play_action)
+        menu.addAction(pause_action)
         menu.addAction(stop_action)
 
         menu.addSeparator()
@@ -427,6 +430,10 @@ class Tray:
     def play(self):
         if self.wallpaper.current_video:
             self.wallpaper.player.play()
+
+
+    def pause(self):
+        self.wallpaper.player.pause()
 
 
     def stop(self):
