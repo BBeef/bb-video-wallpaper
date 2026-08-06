@@ -23,12 +23,20 @@ else:
     ROOT_DIR = FILE.parent
     ICON_PATH = ROOT_DIR / "icon" / "bb-video-wallpaper.ico"
 
-VLC_DIR = ROOT_DIR / "VLC"
-VIDEO_DIR = ROOT_DIR / "video"
-CONFIG_PATH = ROOT_DIR / "config.json"
 
 TASK_NAME = "BBVideoWallpaper"
 
+
+APPDATA_DIR = (Path(os.getenv("LOCALAPPDATA")) / "BB" / "BB Video Wallpaper")  # type: ignore
+APPDATA_DIR.mkdir(parents=True, exist_ok=True)
+
+VIDEO_DIR = APPDATA_DIR / "video"
+VIDEO_DIR.mkdir(exist_ok=True)
+
+CONFIG_PATH = APPDATA_DIR / "config.json"
+
+
+VLC_DIR = ROOT_DIR / "VLC"
 
 if VLC_DIR.exists():
     os.add_dll_directory(str(VLC_DIR))
@@ -41,9 +49,6 @@ if VLC_DIR.exists():
         sys.exit(1)
 
 import vlc
-
-
-VIDEO_DIR.mkdir(exist_ok=True)
 
 
 def run_as_admin():

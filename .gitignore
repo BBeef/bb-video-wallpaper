@@ -5,6 +5,7 @@ venv/
 .venv/
 __pycache__/
 
+installer/
 video/
 VLC/
 
