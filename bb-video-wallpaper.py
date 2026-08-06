@@ -1,26 +1,22 @@
 import sys
 import os
 import ctypes
-import time
 import subprocess
 import json
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import win32gui
 import win32con
+import win32api
 
-from PySide6.QtWidgets import (
-    QApplication,
-    QWidget,
-    QSystemTrayIcon,
-    QMenu
-)
+from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QIcon
 
 
 if getattr(sys, "frozen", False):
-    FILE = Path(sys.executable)
+    FILE = Path(sys.executable).resolve()
     ROOT_DIR = FILE.parent
     ICON_PATH = ROOT_DIR/ "_internal" / "icon" / "bb-video-wallpaper.ico"
 else:
@@ -35,12 +31,15 @@ CONFIG_PATH = ROOT_DIR / "config.json"
 TASK_NAME = "BBVideoWallpaper"
 
 
-
 if VLC_DIR.exists():
     os.add_dll_directory(str(VLC_DIR))
-    
-    ctypes.CDLL(str(VLC_DIR / "libvlccore.dll"))
-    ctypes.CDLL(str(VLC_DIR / "libvlc.dll"))
+
+    try:
+        ctypes.CDLL(str(VLC_DIR / "libvlccore.dll"))
+        ctypes.CDLL(str(VLC_DIR / "libvlc.dll"))
+    except OSError:
+        print("VLC 載入失敗")
+        sys.exit(1)
 
 import vlc
 
@@ -164,53 +163,116 @@ def get_videos():
     ]
 
 
-def get_workerw():
+def create_workerw(parent_hwnd):
     """
-    取得 WorkerW 視窗
+    手動創建一個 WorkerW 視窗
     """
 
-    progman = win32gui.FindWindow("Progman", None)
+    try:
+
+        wc = win32gui.WNDCLASS()
+        wc.hInstance = win32api.GetModuleHandle(None)                                                         # type: ignore
+        wc.lpszClassName = "WorkerW"                                                                          # type: ignore
+        wc.style = win32con.CS_VREDRAW | win32con.CS_HREDRAW                                                  # type: ignore
+        wc.lpfnWndProc = lambda hwnd, msg, wParam, lParam: win32gui.DefWindowProc(hwnd, msg, wParam, lParam)  # type: ignore
+        class_atom = win32gui.RegisterClass(wc)
+
+    except Exception:
+        # 如果 WorkerW 類別已經被註冊過, 直接無視錯誤
+        pass
+
+
+    rect = win32gui.GetClientRect(parent_hwnd)
+    width = rect[2] - rect[0]
+    height = rect[3] - rect[1]
+
+    hwnd = win32gui.CreateWindowEx(
+        win32con.WS_EX_LAYERED | win32con.WS_EX_TOOLWINDOW,
+        "WorkerW",
+        "",
+        win32con.WS_CHILD | win32con.WS_VISIBLE | win32con.WS_CLIPSIBLINGS,
+        0, 0, width, height,
+        parent_hwnd,
+        None,
+        win32api.GetModuleHandle(None),
+        None
+    )
+
+    return hwnd
+
+
+def set_windows_as_wallpaper(hwnd):
+    """
+    將視窗放到桌布
+    """
+
+    progman = win32gui.FindWindow("Progman", "Program Manager")
+
+    if not progman:
+        progman = win32gui.FindWindow("Progman", None)
+
     if not progman:
         raise RuntimeError("找不到 Progman 視窗")
 
-    # 發送訊息讓 Explorer 建立 WorkerW
-    win32gui.SendMessageTimeout(
-        progman, 0x052C, 0, 0, win32con.SMTO_NORMAL, 1000
-    )
 
-    workerw = None
+    # 發送舊版 0x052C 訊息讓桌面分裂
+    # 把本來黏在一起的 "桌面圖示" 與 "背景桌布" 分離開來, 希望在中間炸出一個獨立的 WorkerW 視窗
+    win32gui.SendMessageTimeout(progman, 0x052C, 0, None, 0, 0x03E8)
+    win32gui.SendMessageTimeout(progman, 0x052C, 0xD, None, 0, 0x03E8)
+    win32gui.SendMessageTimeout(progman, 0x052C, 0xD, 1, 0, 0x03E8)
 
-    def enum_windows(hwnd, lparam):
 
-        nonlocal workerw
+    WorkerW_top = None
+    SHELLDLL_DefView = None
+    WorkerW_first = None
+    WorkerW_old = None
 
-        shell_view = win32gui.FindWindowEx(hwnd, 0, "SHELLDLL_DefView", None)
 
-        if shell_view:
-            # 嘗試找與它同層的 WorkerW
-            w = win32gui.FindWindowEx(0, hwnd, "WorkerW", None)
-            if w:
-                workerw = w
+    # 嘗試搜尋舊版分裂產生的 WorkerW
+    while True:
 
-        return True
-
-    for _ in range(5):
-        win32gui.EnumWindows(enum_windows, None)
-
-        if workerw:
+        WorkerW_top = win32gui.FindWindowEx(None, WorkerW_top, "WorkerW", None)
+        if WorkerW_top == WorkerW_first:
+            # 直到找不到分裂的桌面圖示層
             break
 
-        time.sleep(0.2)
+        if WorkerW_first is None:
+            WorkerW_first = WorkerW_top
 
-    # 找不到, 可能 SHELLDLL_DefView 在 Progman 下
-    if not workerw:
-        shell_view = win32gui.FindWindowEx(progman, 0, "SHELLDLL_DefView", None)
-        if shell_view:
-            workerw = progman
+        if not WorkerW_top:
+            continue
 
-    if not workerw:
-        raise RuntimeError("找不到 WorkerW 視窗")
-    return workerw
+        SHELLDLL_DefView = win32gui.FindWindowEx(WorkerW_top, None, "SHELLDLL_DefView", None)
+        if not SHELLDLL_DefView:
+            continue
+
+        WorkerW_old = win32gui.FindWindowEx(None, WorkerW_top, "WorkerW", None)
+        break
+
+
+    # 判斷使用新版或舊版機制
+    if not WorkerW_old:
+
+        # 新版 Windows 11: 直接在 Progman 底下找尋或創建 WorkerW
+        new_workerw = win32gui.FindWindowEx(progman, None, "WorkerW", None)
+        if not new_workerw:
+            new_workerw = create_workerw(progman)
+            
+        ctypes.windll.user32.SetParent(hwnd, new_workerw)
+
+    else:
+
+        # 舊版: 直接掛載到分裂後的 WorkerW
+        ctypes.windll.user32.SetParent(hwnd, WorkerW_old)
+        ctypes.windll.user32.SetWindowPos(
+            hwnd,
+
+            SHELLDLL_DefView,
+
+            0, 0, 0, 0,
+
+            0x0001 | 0x0002
+        )
 
 
 class Wallpaper(QWidget):
@@ -221,15 +283,12 @@ class Wallpaper(QWidget):
 
 
         self.current_video = ""
-        
         videos = get_videos()
-
         config = load_config()
-
         recent = config.get("recentVideo")
 
-        if recent:
 
+        if recent:
             recent_path = VIDEO_DIR / recent
 
             if recent_path.is_file():
@@ -249,19 +308,14 @@ class Wallpaper(QWidget):
         )
 
         # 不接受滑鼠事件
-        self.setAttribute(
-            Qt.WA_TransparentForMouseEvents,  # type: ignore
-            True
-        )
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)  # type: ignore
 
         # 設成螢幕大小
         screen = QApplication.primaryScreen()
+        self.setGeometry(screen.geometry())
 
-        self.setGeometry(
-            screen.geometry()
-        )
 
-        # VLC 核心
+        # VLC
         self.instance = vlc.Instance(
             "--no-video-title-show",
             "--input-repeat=65535",
@@ -275,15 +329,6 @@ class Wallpaper(QWidget):
         if self.current_video:
             media = self.instance.media_new(str(self.current_video))  # type: ignore
             self.player.set_media(media)
-
-        # Qt 視窗本身在 Windows 有 HWND
-        # VLC 需要知道影片畫面要畫在哪個 Windows 視窗
-        hwnd = int(self.winId())
-
-        # 將 VLC 輸出綁定到 Qt 視窗
-        self.player.set_hwnd(
-            hwnd
-        )
 
 
     def set_video(self, path: Path):
@@ -307,53 +352,11 @@ class Wallpaper(QWidget):
         將 Qt 視窗移到 Windows 桌布層
         """
 
-        workerw = get_workerw()
+        hwnd = int(self.winId())
+        set_windows_as_wallpaper(hwnd)
 
-        if workerw:
-
-            # 取得自己的 HWND
-            hwnd = int(self.winId())
-
-            # 掛到 WorkerW
-            win32gui.SetParent(hwnd,workerw)
-
-            # 取得 WorkerW 大小
-            rect = win32gui.GetWindowRect(workerw)
-            width = rect[2] - rect[0]
-            height = rect[3] - rect[1]
-
-            # 設定大小
-            win32gui.SetWindowPos(
-                hwnd,
-
-                win32con.HWND_TOP,
-
-                0,
-                0,
-                width,
-                height,
-
-                win32con.SWP_NOACTIVATE |
-                win32con.SWP_SHOWWINDOW
-            )
-
-            style = win32gui.GetWindowLong(
-                hwnd,
-                win32con.GWL_EXSTYLE
-            )
-
-
-            style |= (
-                win32con.WS_EX_NOACTIVATE |
-                win32con.WS_EX_TRANSPARENT
-            )
-
-
-            win32gui.SetWindowLong(
-                hwnd,
-                win32con.GWL_EXSTYLE,
-                style
-            )
+        # 重新設定 HWND 給 VLC 指向
+        self.player.set_hwnd(hwnd)
 
 
 class Tray:
@@ -365,12 +368,9 @@ class Tray:
 
 
         self.tray = QSystemTrayIcon()
-
         self.tray.setIcon(QIcon(str(ICON_PATH)))
+        self.tray.setToolTip("BB Video Wallpaper")
 
-        self.tray.setToolTip(
-            "BB Video Wallpaper"
-        )
 
         menu = QMenu()
 
@@ -401,7 +401,6 @@ class Tray:
         menu.addSeparator()
 
         self.video_menu = menu.addMenu("選擇影片")
-        
         self.video_menu.aboutToShow.connect(
             self.refresh_video_menu
         )
@@ -450,6 +449,9 @@ class Tray:
                     self.wallpaper.set_video(v)
             )
 
+            action.setCheckable(True)
+            action.setChecked(video == self.wallpaper.current_video)
+
             self.video_menu.addAction(action)
 
 
@@ -480,7 +482,9 @@ if __name__ == "__main__":
             run_task()
             sys.exit()
 
+
         run_as_admin()
+
 
         # 建立 Qt 應用程式
         app = QApplication(sys.argv)
@@ -492,17 +496,13 @@ if __name__ == "__main__":
         # 塞進 Windows 桌布層
         w.attach_to_desktop()
 
-        tray = Tray(
-            app,
-            w
-        )
-
         # 開始播放
         if w.current_video:
-            QTimer.singleShot(
-                100,
-                w.player.play
-            )
+            QTimer.singleShot(100, w.player.play)
+
+
+        tray = Tray(app, w)
+
 
         # Qt 主迴圈
         sys.exit(app.exec())
