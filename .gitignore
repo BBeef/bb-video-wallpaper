@@ -1,3 +1,4 @@
+build/
 dist/
 test/
 venv/
@@ -11,3 +12,5 @@ VLC/
 config.json
 
 frozen.txt
+
+*.spec

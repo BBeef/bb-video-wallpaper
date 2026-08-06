@@ -4,7 +4,6 @@ import ctypes
 import subprocess
 import json
 from pathlib import Path
-import xml.etree.ElementTree as ET
 
 import win32gui
 import win32con
