@@ -288,6 +288,57 @@ def set_windows_as_wallpaper(hwnd):
         )
 
 
+def is_foreground_fullscreen():
+    """
+    偵測畫面上是否有全螢幕程式
+    """
+
+    # 邊界容許值
+    FULLSCREEN_MARGIN = 2
+
+
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return False
+
+
+    # 自己不算
+    if hwnd == int(w.winId()):
+        return False
+
+    # 隱藏視窗不算
+    if not win32gui.IsWindowVisible(hwnd):
+        return False
+
+    # 最小化視窗不算
+    if win32gui.IsIconic(hwnd):
+        return False
+
+
+    try:
+        monitor = win32api.MonitorFromWindow(
+            hwnd,
+            win32con.MONITOR_DEFAULTTONEAREST
+        )
+        info = win32api.GetMonitorInfo(monitor)
+        monitor_left, monitor_top, monitor_right, monitor_bottom = info["Work"]
+    except Exception:
+        return False
+    
+    try:
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+    except Exception:
+        return False
+
+
+    return (
+        left <= monitor_left + FULLSCREEN_MARGIN and
+        top <= monitor_top + FULLSCREEN_MARGIN and
+        right >= monitor_right - FULLSCREEN_MARGIN and
+        bottom >= monitor_bottom - FULLSCREEN_MARGIN
+    )
+
+
 class Wallpaper(QWidget):
 
     def __init__(self):
@@ -299,7 +350,6 @@ class Wallpaper(QWidget):
         videos = get_videos()
         config = load_config()
         recent = config.get("recentVideo")
-
 
         if recent:
             recent_path = VIDEO_DIR / recent
@@ -344,6 +394,13 @@ class Wallpaper(QWidget):
             self.player.set_media(media)
 
 
+        self.auto_paused = False
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check_fullscreen)
+        self.timer.start(500)
+
+
     def set_video(self, path: Path):
 
         self.player.stop()
@@ -370,6 +427,30 @@ class Wallpaper(QWidget):
 
         # 重新設定 HWND 給 VLC 指向
         self.player.set_hwnd(hwnd)
+
+
+    def set_paused(self, paused):
+        """
+        自動暫停
+        """
+
+        if paused == self.auto_paused:
+            return
+
+        self.auto_paused = paused
+
+        if paused:
+            self.player.pause()
+        else:
+            self.player.play()
+
+
+    def check_fullscreen(self):
+        """
+        畫面上有全螢幕程式就自動暫停
+        """
+
+        self.set_paused(is_foreground_fullscreen())
 
 
 class Tray:
