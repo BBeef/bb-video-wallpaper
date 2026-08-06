@@ -1,0 +1,4 @@
+pyinstaller
+PySide6
+python-vlc
+pywin32

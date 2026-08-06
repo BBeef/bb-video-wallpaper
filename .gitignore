@@ -1,0 +1,13 @@
+dist/
+test/
+venv/
+.venv/
+__pycache__/
+
+video/
+VLC/
+
+.directory
+config.json
+
+frozen.txt
