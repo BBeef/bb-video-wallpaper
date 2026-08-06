@@ -60,8 +60,8 @@ pyinstaller --noconfirm --onedir --noconsole --uac-admin --icon=icon/bb-video-wa
 
 ```
 Folder/
- ├─ icon/
- │   └─ bb-video-wallpaper.ico
+ ├─ _internal/
+ │   └─ ...
  ├─ VLC/
  │   ├─ plugins/
  │   ├─ libvlc.dll
