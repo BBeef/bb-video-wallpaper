@@ -324,7 +324,7 @@ def is_foreground_fullscreen():
     """
 
     # 邊界容許值
-    FULLSCREEN_MARGIN = 2
+    FULLSCREEN_MARGIN = 4
 
 
     hwnd = win32gui.GetForegroundWindow()
