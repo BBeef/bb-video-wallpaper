@@ -101,6 +101,9 @@ ctypes.windll.user32.UnregisterPowerSettingNotification.argtypes = [
 ]
 
 
+SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi",}
+
+
 def run_as_admin():
     """
     檢查是否為系統管理員權限
@@ -217,7 +220,7 @@ def get_videos():
             VIDEO_DIR.iterdir(),
             key=lambda p: p.name.casefold()
         )
-        if v.suffix.lower() == ".mp4"
+        if v.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
     ]
 
 
