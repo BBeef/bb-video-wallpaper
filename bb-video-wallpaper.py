@@ -439,7 +439,7 @@ class Wallpaper(QWidget):
             self.player.set_media(media)
 
 
-        self.auto_paused = True
+        self.enable_auto_pause = True
         self.paused = False
 
         self.timer = QTimer(self)
@@ -499,7 +499,7 @@ class Wallpaper(QWidget):
         save_config(config)
 
         self.player.play()
-        self.auto_paused = True
+        self.enable_auto_pause = True
         self.paused = False
         print("play")
 
@@ -532,7 +532,7 @@ class Wallpaper(QWidget):
         檢查是否需要自動暫停
         """
 
-        if not self.auto_paused:
+        if not self.enable_auto_pause:
             return
 
 
@@ -665,21 +665,21 @@ class Tray:
     def play(self):
         if self.wallpaper.current_video:
             self.wallpaper.player.play()
-            self.wallpaper.auto_paused = True
+            self.wallpaper.enable_auto_pause = True
             self.wallpaper.paused = False
             print("play")
 
 
     def pause(self):
         self.wallpaper.player.pause()
-        self.wallpaper.auto_paused = False
+        self.wallpaper.enable_auto_pause = False
         self.wallpaper.paused = True
         print("pause")
 
 
     def stop(self):
         self.wallpaper.player.stop()
-        self.wallpaper.auto_paused = False
+        self.wallpaper.enable_auto_pause = False
         self.wallpaper.paused = True
         print("stop")
 
