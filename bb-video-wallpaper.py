@@ -87,6 +87,20 @@ GUID_CONSOLE_DISPLAY_STATE = GUID(
 )
 
 
+# 明確指定 Windows API 的參數與回傳值型別, 避免 64 位元 Handle 被截斷
+ctypes.windll.user32.RegisterPowerSettingNotification.restype = wintypes.HANDLE
+ctypes.windll.user32.RegisterPowerSettingNotification.argtypes = [
+    wintypes.HANDLE,
+    ctypes.c_void_p,
+    wintypes.DWORD
+]
+
+ctypes.windll.user32.UnregisterPowerSettingNotification.restype = wintypes.BOOL
+ctypes.windll.user32.UnregisterPowerSettingNotification.argtypes = [
+    wintypes.HANDLE
+]
+
+
 def run_as_admin():
     """
     檢查是否為系統管理員權限
@@ -549,10 +563,13 @@ class Wallpaper(QWidget):
         """
 
         if self.power_notify:
-            ctypes.windll.user32.UnregisterPowerSettingNotification(
-                self.power_notify
-            )
-            self.power_notify = None
+            try:
+                ctypes.windll.user32.UnregisterPowerSettingNotification(self.power_notify)
+            except Exception as e:
+                print(f"取消註冊電源通知時發生錯誤")
+                print(f" > {e}")
+            finally:
+                self.power_notify = None
 
 
 class Tray:
