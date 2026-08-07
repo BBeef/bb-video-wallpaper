@@ -424,15 +424,19 @@ class Wallpaper(QWidget):
             self.player.set_media(media)
 
 
-        self.auto_paused = False
+        self.auto_paused = True
+        self.paused = False
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.check_auto_pause)
         self.timer.start(500)
 
 
-        self.display_off = False
+        self.screen_off = False
         self.power_notify = None
+
+        self.auto_pause_if_fullscreen = True
+        self.auto_pause_if_screen_off = True
 
 
     def nativeEvent(self, eventType, message):
@@ -453,12 +457,12 @@ class Wallpaper(QWidget):
                 if bytes(setting.PowerSetting) == bytes(GUID_CONSOLE_DISPLAY_STATE):
 
                     if setting.Data == 0:
-                        self.display_off = True
-                        print("test-display_off")
+                        self.screen_off = True
+                        print("test-screen_off")
 
                     else:
-                        self.display_off = False
-                        print("test-display_on")
+                        self.screen_off = False
+                        print("test-screen_on")
 
                     self.check_auto_pause()
 
@@ -481,6 +485,8 @@ class Wallpaper(QWidget):
         save_config(config)
 
         self.player.play()
+        self.auto_paused = True
+        self.paused = False
 
 
     def attach_to_desktop(self):
@@ -506,33 +512,31 @@ class Wallpaper(QWidget):
             print("螢幕電源通知註冊失敗")
 
 
-    def set_paused(self, paused):
-        """
-        自動暫停
-        """
-
-        if paused == self.auto_paused:
-            return
-
-        self.auto_paused = paused
-
-        if paused:
-            self.player.pause()
-            print("test-pause")
-        else:
-            self.player.play()
-            print("test-play")
-
-
     def check_auto_pause(self):
         """
         檢查是否需要自動暫停
         """
 
-        self.set_paused(
-            self.display_off or
-            is_foreground_fullscreen()
-        )
+        if not self.auto_paused:
+            return
+
+
+        need_auto_pause = False
+
+        need_auto_pause = (self.auto_pause_if_fullscreen and is_foreground_fullscreen()) or need_auto_pause
+
+        need_auto_pause = (self.auto_pause_if_screen_off and self.screen_off) or need_auto_pause
+
+
+        if need_auto_pause:
+            if not self.paused:
+
+                self.player.pause()
+                self.paused = True
+
+        else:
+            self.player.play()
+            self.paused = False
 
 
     def unregister_power_notification(self):
@@ -571,18 +575,29 @@ class Tray:
         open_video_action = QAction("開啟影片資料夾", menu)
         open_video_action.triggered.connect(self.open_video_folder)
 
+
+        auto_pause_if_fullscreen_action = QAction("全螢幕時自動暫停", menu)
+        auto_pause_if_fullscreen_action.setCheckable(True)
+        auto_pause_if_fullscreen_action.setChecked(True)
+
+        auto_pause_if_screen_off_action = QAction("螢幕關閉時自動暫停", menu)
+        auto_pause_if_screen_off_action.setCheckable(True)
+        auto_pause_if_screen_off_action.setChecked(True)
+
         startup_action = QAction("開機自動啟動", menu)
         startup_action.setCheckable(True)
         startup_action.setChecked(task_exists())
+
 
         play_action.triggered.connect(self.play)
         pause_action.triggered.connect(self.pause)
         stop_action.triggered.connect(self.stop)
         exit_action.triggered.connect(self.exit)
 
-        startup_action.triggered.connect(self.toggle_startup)
 
-        self.startup_action = startup_action
+        auto_pause_if_fullscreen_action.triggered.connect(self.toggle_auto_pause_if_fullscreen)
+        auto_pause_if_screen_off_action.triggered.connect(self.toggle_auto_pause_if_screen_off)
+        startup_action.triggered.connect(self.toggle_startup)
 
 
         menu.addAction(play_action)
@@ -600,6 +615,11 @@ class Tray:
 
         menu.addSeparator()
 
+        menu.addAction(auto_pause_if_fullscreen_action)
+        menu.addAction(auto_pause_if_screen_off_action)
+
+        menu.addSeparator()
+
         menu.addAction(startup_action)
 
         menu.addSeparator()
@@ -614,14 +634,20 @@ class Tray:
     def play(self):
         if self.wallpaper.current_video:
             self.wallpaper.player.play()
+            self.wallpaper.auto_paused = True
+            self.wallpaper.paused = False
 
 
     def pause(self):
         self.wallpaper.player.pause()
+        self.wallpaper.auto_paused = False
+        self.wallpaper.paused = True
 
 
     def stop(self):
         self.wallpaper.player.stop()
+        self.wallpaper.auto_paused = False
+        self.wallpaper.paused = True
 
 
     def refresh_video_menu(self):
@@ -652,6 +678,20 @@ class Tray:
 
     def open_video_folder(self):
         os.startfile(str(VIDEO_DIR))
+
+
+    def toggle_auto_pause_if_fullscreen(self, checked):
+        if checked:
+            self.wallpaper.auto_pause_if_fullscreen = True
+        else:
+            self.wallpaper.auto_pause_if_fullscreen = False
+
+
+    def toggle_auto_pause_if_screen_off(self, checked):
+        if checked:
+            self.wallpaper.auto_pause_if_screen_off = True
+        else:
+            self.wallpaper.auto_pause_if_screen_off = False
 
 
     def toggle_startup(self, checked):
