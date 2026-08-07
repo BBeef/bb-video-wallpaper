@@ -1,6 +1,5 @@
 import sys
 import os
-import ctypes
 import subprocess
 import json
 from pathlib import Path
@@ -8,6 +7,8 @@ from pathlib import Path
 import win32gui
 import win32con
 import win32api
+import ctypes
+from ctypes import wintypes
 
 from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 from PySide6.QtCore import Qt, QTimer
@@ -54,6 +55,43 @@ else:
     sys.exit(1)
 
 import vlc
+
+
+WM_POWERBROADCAST = 0x0218
+PBT_POWERSETTINGCHANGE = 0x8013
+DEVICE_NOTIFY_WINDOW_HANDLE = 0
+
+class GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", ctypes.c_uint32),
+        ("Data2", ctypes.c_uint16),
+        ("Data3", ctypes.c_uint16),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
+
+
+class POWERBROADCAST_SETTING(ctypes.Structure):
+    _fields_ = [
+        ("PowerSetting", GUID),
+        ("DataLength", wintypes.DWORD),
+        ("Data", wintypes.DWORD),
+    ]
+
+
+GUID_CONSOLE_DISPLAY_STATE = GUID(
+    0x6FE69556,
+    0x704A,
+    0x47A0,
+    (ctypes.c_ubyte * 8)(
+        0x8F,
+        0x24,
+        0xC2,
+        0x8D,
+        0x93,
+        0x6F,
+        0xDA,
+        0x47)
+)
 
 
 def run_as_admin():
@@ -397,8 +435,38 @@ class Wallpaper(QWidget):
         self.auto_paused = False
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.check_fullscreen)
+        self.timer.timeout.connect(self.check_auto_pause)
         self.timer.start(500)
+
+
+        self.display_off = False
+        self.power_notify = None
+
+
+    def nativeEvent(self, eventType, message):
+
+        msg = ctypes.cast(int(message), ctypes.POINTER(wintypes.MSG)).contents
+
+        if (
+            msg.message == WM_POWERBROADCAST and
+            msg.wParam == PBT_POWERSETTINGCHANGE
+        ):
+            setting = ctypes.cast(
+                msg.lParam,
+                ctypes.POINTER(POWERBROADCAST_SETTING)
+            ).contents
+
+            if setting.Data == 0:
+                # 螢幕關閉
+                self.display_off = True
+                self.set_paused(True)
+
+            else:
+                # 螢幕開啟
+                self.display_off = False
+                self.check_auto_pause()
+
+        return False, 0
 
 
     def set_video(self, path: Path):
@@ -428,6 +496,16 @@ class Wallpaper(QWidget):
         # 重新設定 HWND 給 VLC 指向
         self.player.set_hwnd(hwnd)
 
+        # 註冊 Windows 螢幕電源通知
+        self.power_notify = ctypes.windll.user32.RegisterPowerSettingNotification(
+            hwnd,
+            ctypes.byref(GUID_CONSOLE_DISPLAY_STATE),
+            DEVICE_NOTIFY_WINDOW_HANDLE
+        )
+
+        if not self.power_notify:
+            print("螢幕電源通知註冊失敗")
+
 
     def set_paused(self, paused):
         """
@@ -445,12 +523,27 @@ class Wallpaper(QWidget):
             self.player.play()
 
 
-    def check_fullscreen(self):
+    def check_auto_pause(self):
         """
-        畫面上有全螢幕程式就自動暫停
+        檢查是否需要自動暫停
         """
 
-        self.set_paused(is_foreground_fullscreen())
+        self.set_paused(
+            self.display_off or
+            is_foreground_fullscreen()
+        )
+
+
+    def unregister_power_notification(self):
+        """
+        取消註冊 Windows 螢幕電源通知
+        """
+
+        if self.power_notify:
+            ctypes.windll.user32.UnregisterPowerSettingNotification(
+                self.power_notify
+            )
+            self.power_notify = None
 
 
 class Tray:
@@ -568,6 +661,7 @@ class Tray:
 
 
     def exit(self):
+        self.wallpaper.unregister_power_notification()
         self.wallpaper.player.stop()
         self.app.quit()
 
