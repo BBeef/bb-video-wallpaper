@@ -13,6 +13,7 @@ from ctypes import wintypes
 from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QFont
 
 
 if getattr(sys, "frozen", False):
@@ -566,6 +567,7 @@ class Tray:
 
         menu = QMenu()
 
+
         play_action = QAction("播放", menu)
         pause_action = QAction("暫停", menu)
         stop_action = QAction("停止", menu)
@@ -604,7 +606,9 @@ class Tray:
         menu.addAction(pause_action)
         menu.addAction(stop_action)
 
+
         menu.addSeparator()
+
 
         self.video_menu = menu.addMenu("選擇影片")
         self.video_menu.aboutToShow.connect(
@@ -613,18 +617,25 @@ class Tray:
 
         menu.addAction(open_video_action)
 
-        menu.addSeparator()
-
-        menu.addAction(auto_pause_if_fullscreen_action)
-        menu.addAction(auto_pause_if_screen_off_action)
 
         menu.addSeparator()
 
-        menu.addAction(startup_action)
+
+        self.options_menu = menu.addMenu("選項")
+
+        self.options_menu.addAction(auto_pause_if_fullscreen_action)
+        self.options_menu.addAction(auto_pause_if_screen_off_action)
+
+        self.options_menu.addSeparator()
+
+        self.options_menu.addAction(startup_action)
+
 
         menu.addSeparator()
+
 
         menu.addAction(exit_action)
+
 
         self.tray.setContextMenu(menu)
 
@@ -716,6 +727,12 @@ if __name__ == "__main__":
 
     # 建立 Qt 應用程式
     app = QApplication(sys.argv)
+
+
+    font = QFont()
+    font.setPointSize(11)
+    app.setFont(font)
+
 
     # 建立播放器
     w = Wallpaper()
