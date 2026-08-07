@@ -459,11 +459,9 @@ class Wallpaper(QWidget):
 
                     if setting.Data == 0:
                         self.screen_off = True
-                        print("test-screen_off")
 
                     else:
                         self.screen_off = False
-                        print("test-screen_on")
 
                     self.check_auto_pause()
 
@@ -475,6 +473,7 @@ class Wallpaper(QWidget):
     def set_video(self, path: Path):
 
         self.player.stop()
+        print("stop")
 
         media = self.instance.media_new(str(path))  # type: ignore
         self.player.set_media(media)
@@ -488,6 +487,7 @@ class Wallpaper(QWidget):
         self.player.play()
         self.auto_paused = True
         self.paused = False
+        print("play")
 
 
     def attach_to_desktop(self):
@@ -534,10 +534,13 @@ class Wallpaper(QWidget):
 
                 self.player.pause()
                 self.paused = True
+                print("pause")
 
         else:
-            self.player.play()
-            self.paused = False
+            if self.paused:
+                self.player.play()
+                self.paused = False
+                print("play")
 
 
     def unregister_power_notification(self):
@@ -647,18 +650,21 @@ class Tray:
             self.wallpaper.player.play()
             self.wallpaper.auto_paused = True
             self.wallpaper.paused = False
+            print("play")
 
 
     def pause(self):
         self.wallpaper.player.pause()
         self.wallpaper.auto_paused = False
         self.wallpaper.paused = True
+        print("pause")
 
 
     def stop(self):
         self.wallpaper.player.stop()
         self.wallpaper.auto_paused = False
         self.wallpaper.paused = True
+        print("stop")
 
 
     def refresh_video_menu(self):
@@ -716,6 +722,7 @@ class Tray:
         self.wallpaper.unregister_power_notification()
         self.wallpaper.player.stop()
         self.app.quit()
+        print("exit")
 
 
 if __name__ == "__main__":
