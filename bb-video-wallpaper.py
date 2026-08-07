@@ -82,15 +82,7 @@ GUID_CONSOLE_DISPLAY_STATE = GUID(
     0x6FE69556,
     0x704A,
     0x47A0,
-    (ctypes.c_ubyte * 8)(
-        0x8F,
-        0x24,
-        0xC2,
-        0x8D,
-        0x93,
-        0x6F,
-        0xDA,
-        0x47)
+    (ctypes.c_ubyte * 8)(0x8F, 0x24, 0xC2, 0x8D, 0x93, 0x6F, 0xDA, 0x47)
 )
 
 
@@ -444,29 +436,35 @@ class Wallpaper(QWidget):
 
 
     def nativeEvent(self, eventType, message):
+        """
+        處理原生 Windows 訊息迴圈
+        """
 
-        msg = ctypes.cast(int(message), ctypes.POINTER(wintypes.MSG)).contents
+        if eventType in (b"windows_generic_MSG", "windows_generic_MSG"):
 
-        if (
-            msg.message == WM_POWERBROADCAST and
-            msg.wParam == PBT_POWERSETTINGCHANGE
-        ):
-            setting = ctypes.cast(
-                msg.lParam,
-                ctypes.POINTER(POWERBROADCAST_SETTING)
-            ).contents
+            # 解析 MSG 結構
+            msg = wintypes.MSG.from_address(int(message))
 
-            if setting.Data == 0:
-                # 螢幕關閉
-                self.display_off = True
-                self.set_paused(True)
+            if msg.message == WM_POWERBROADCAST and msg.wParam == PBT_POWERSETTINGCHANGE:
 
-            else:
-                # 螢幕開啟
-                self.display_off = False
-                self.check_auto_pause()
+                setting = ctypes.cast(msg.lParam, ctypes.POINTER(POWERBROADCAST_SETTING)).contents
 
-        return False, 0
+                # 比對 GUID 是否為螢幕顯示狀態變更
+                if bytes(setting.PowerSetting) == bytes(GUID_CONSOLE_DISPLAY_STATE):
+
+                    if setting.Data == 0:
+                        self.display_off = True
+                        print("test-display_off")
+
+                    else:
+                        self.display_off = False
+                        print("test-display_on")
+
+                    self.check_auto_pause()
+
+                    return True, 0
+
+        return super().nativeEvent(eventType, message)  # type: ignore
 
 
     def set_video(self, path: Path):
@@ -491,12 +489,13 @@ class Wallpaper(QWidget):
         """
 
         hwnd = int(self.winId())
+
         set_windows_as_wallpaper(hwnd)
 
         # 重新設定 HWND 給 VLC 指向
         self.player.set_hwnd(hwnd)
 
-        # 註冊 Windows 螢幕電源通知
+
         self.power_notify = ctypes.windll.user32.RegisterPowerSettingNotification(
             hwnd,
             ctypes.byref(GUID_CONSOLE_DISPLAY_STATE),
@@ -519,8 +518,10 @@ class Wallpaper(QWidget):
 
         if paused:
             self.player.pause()
+            print("test-pause")
         else:
             self.player.play()
+            print("test-play")
 
 
     def check_auto_pause(self):
