@@ -509,6 +509,10 @@ class Wallpaper(QWidget):
 
         media = self.instance.media_new(str(path))  # type: ignore
         self.player.set_media(media)
+
+        # 裁切填滿螢幕
+        self.player.video_set_crop_geometry(self.get_screen_aspect_ratio())
+
         self.player.play()
 
 
@@ -540,6 +544,17 @@ class Wallpaper(QWidget):
 
         if not self.power_notify:
             print("螢幕電源通知註冊失敗")
+
+
+    def get_screen_aspect_ratio(self):
+
+        screen = QApplication.primaryScreen()
+        geometry = screen.geometry()
+
+        width = geometry.width()
+        height = geometry.height()
+
+        return f"{width}:{height}"
 
 
     def check_auto_pause(self):
