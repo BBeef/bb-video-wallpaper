@@ -16,10 +16,13 @@ from PySide6.QtGui import QAction, QIcon, QFont
 
 
 if getattr(sys, "frozen", False):
+
     FILE = Path(sys.executable).resolve()
     ROOT_DIR = FILE.parent
     ICON_PATH = ROOT_DIR/ "_internal" / "icon" / "bb-video-wallpaper.ico"
+
 else:
+
     FILE = Path(__file__).resolve()
     ROOT_DIR = FILE.parent
     ICON_PATH = ROOT_DIR / "icon" / "bb-video-wallpaper.ico"
@@ -78,6 +81,7 @@ class POWERBROADCAST_SETTING(ctypes.Structure):
     ]
 
 
+# 螢幕顯示狀態 (亮暗關) 的 GUID
 GUID_CONSOLE_DISPLAY_STATE = GUID(
     0x6FE69556,
     0x704A,
@@ -888,9 +892,18 @@ class Tray:
 
 
     def exit(self) -> None:
+        try:
 
-        self.wallpaper.unregister_power_notification()
-        self.wallpaper.player.stop()
+            self.wallpaper.unregister_power_notification()
+
+            self.wallpaper.player.stop()
+
+            self.wallpaper.player.release()
+            self.wallpaper.instance.release()
+
+        except:
+            pass
+
         self.app.quit()
         print("exit")
 
