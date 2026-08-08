@@ -104,7 +104,7 @@ SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi",}
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp",}
 
 
-def run_as_admin():
+def run_as_admin() -> None:
     """
     檢查是否為系統管理員權限
     """
@@ -122,7 +122,7 @@ def run_as_admin():
         sys.exit()
 
 
-def load_config():
+def load_config() -> dict:
 
     if not CONFIG_PATH.exists():
         return {}
@@ -135,7 +135,7 @@ def load_config():
         return {}
 
 
-def save_config(config):
+def save_config(config) -> None:
 
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(
@@ -146,7 +146,10 @@ def save_config(config):
         )
 
 
-def create_task():
+def create_task() -> None:
+    """
+    加入 Windows 工作排程器
+    """
 
     cmd = [
         "schtasks",
@@ -182,7 +185,10 @@ def create_task():
     )
 
 
-def delete_task():
+def delete_task() -> None:
+    """
+    從 Windows 工作排程器中刪除
+    """
 
     subprocess.run(
         [
@@ -195,7 +201,10 @@ def delete_task():
     )
 
 
-def task_exists():
+def task_exists() -> bool:
+    """
+    檢查 Windows 工作排程器中是否存在這項工作
+    """
 
     result = subprocess.run(
         [
@@ -212,7 +221,10 @@ def task_exists():
     return result.returncode == 0
 
 
-def get_media():
+def get_media() -> list:
+    """
+    從 VIDEO_DIR 取得媒體
+    """
 
     return [
         p
@@ -266,7 +278,7 @@ def create_workerw(parent_hwnd):
     return hwnd
 
 
-def set_windows_as_wallpaper(hwnd):
+def set_windows_as_wallpaper(hwnd) -> None:
     """
     將視窗放到桌布
     """
@@ -340,7 +352,7 @@ def set_windows_as_wallpaper(hwnd):
         )
 
 
-def is_foreground_fullscreen(wallpaper_hwnd):
+def is_foreground_fullscreen(wallpaper_hwnd) -> bool:
     """
     偵測畫面上是否有全螢幕程式
     """
@@ -531,7 +543,7 @@ class Wallpaper(QWidget):
         return super().nativeEvent(eventType, message)  # type: ignore
 
 
-    def reattach_to_desktop(self):
+    def reattach_to_desktop(self) -> None:
         """
         重新建立視窗並掛載桌布
         """
@@ -584,7 +596,7 @@ class Wallpaper(QWidget):
         self.is_recreating = False
 
 
-    def set_play_media(self, path: Path):
+    def set_play_media(self, path: Path) -> None:
 
         self.current_video = path
 
@@ -613,7 +625,7 @@ class Wallpaper(QWidget):
         print("play")
 
 
-    def attach_to_desktop(self):
+    def attach_to_desktop(self) -> None:
         """
         將 Qt 視窗移到 Windows 桌布層
         """
@@ -638,7 +650,7 @@ class Wallpaper(QWidget):
             print("螢幕電源通知註冊失敗")
 
 
-    def get_screen_aspect_ratio(self):
+    def get_screen_aspect_ratio(self) -> str:
 
         screen = QApplication.primaryScreen()
         geometry = screen.geometry()
@@ -649,7 +661,7 @@ class Wallpaper(QWidget):
         return f"{width}:{height}"
 
 
-    def check_auto_pause(self):
+    def check_auto_pause(self) -> None:
         """
         檢查是否需要自動暫停
         """
@@ -686,7 +698,7 @@ class Wallpaper(QWidget):
                 print("play")
 
 
-    def unregister_power_notification(self):
+    def unregister_power_notification(self) -> None:
         """
         取消註冊 Windows 螢幕電源通知
         """
@@ -791,7 +803,7 @@ class Tray:
         self.tray.show()
 
 
-    def play(self):
+    def play(self) -> None:
         if self.wallpaper.current_video:
 
             if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
@@ -804,7 +816,7 @@ class Tray:
             print("play")
 
 
-    def pause(self):
+    def pause(self) -> None:
         if self.wallpaper.current_video:
 
             if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
@@ -817,7 +829,7 @@ class Tray:
         print("pause")
 
 
-    def stop(self):
+    def stop(self) -> None:
         if self.wallpaper.current_video:
 
             if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
@@ -830,7 +842,7 @@ class Tray:
         print("stop")
 
 
-    def refresh_video_menu(self):
+    def refresh_video_menu(self) -> None:
 
         self.video_menu.clear()
 
@@ -856,32 +868,27 @@ class Tray:
             self.video_menu.addAction(action)
 
 
-    def open_video_folder(self):
+    def open_video_folder(self) -> None:
         os.startfile(str(VIDEO_DIR))
 
 
-    def toggle_auto_pause_if_fullscreen(self, checked):
-        if checked:
-            self.wallpaper.auto_pause_if_fullscreen = True
-        else:
-            self.wallpaper.auto_pause_if_fullscreen = False
+    def toggle_auto_pause_if_fullscreen(self, checked) -> None:
+        self.wallpaper.auto_pause_if_fullscreen = checked
 
 
-    def toggle_auto_pause_if_screen_off(self, checked):
-        if checked:
-            self.wallpaper.auto_pause_if_screen_off = True
-        else:
-            self.wallpaper.auto_pause_if_screen_off = False
+    def toggle_auto_pause_if_screen_off(self, checked) -> None:
+        self.wallpaper.auto_pause_if_screen_off = checked
 
 
-    def toggle_startup(self, checked):
+    def toggle_startup(self, checked) -> None:
         if checked:
             create_task()
         else:
             delete_task()
 
 
-    def exit(self):
+    def exit(self) -> None:
+
         self.wallpaper.unregister_power_notification()
         self.wallpaper.player.stop()
         self.app.quit()
