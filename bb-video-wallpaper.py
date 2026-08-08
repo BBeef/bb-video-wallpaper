@@ -655,7 +655,7 @@ class Wallpaper(QWidget):
         """
 
         # 若正在重建視窗則跳過
-        if not self.enable_auto_pause or self.is_recreating:
+        if self.is_recreating:
             return
 
         if not self.enable_auto_pause:
@@ -805,11 +805,12 @@ class Tray:
 
 
     def pause(self):
+        if self.wallpaper.current_video:
 
-        if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+            if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
-            self.wallpaper.player.pause()
-            self.wallpaper.enable_auto_pause = False
+                self.wallpaper.player.pause()
+                self.wallpaper.enable_auto_pause = False
 
 
         self.wallpaper.paused = True
@@ -817,10 +818,11 @@ class Tray:
 
 
     def stop(self):
+        if self.wallpaper.current_video:
 
-        if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+            if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
-            self.wallpaper.enable_auto_pause = False
+                self.wallpaper.enable_auto_pause = False
 
 
         self.wallpaper.player.stop()
