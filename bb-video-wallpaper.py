@@ -81,6 +81,17 @@ class POWERBROADCAST_SETTING(ctypes.Structure):
     ]
 
 
+class SYSTEM_POWER_STATUS(ctypes.Structure):
+    _fields_ = [
+        ("ACLineStatus", ctypes.c_ubyte),
+        ("BatteryFlag", ctypes.c_ubyte),
+        ("BatteryLifePercent", ctypes.c_ubyte),
+        ("Reserved1", ctypes.c_ubyte),
+        ("BatteryLifeTime", wintypes.DWORD),
+        ("BatteryFullLifeTime", wintypes.DWORD),
+    ]
+
+
 # 螢幕顯示狀態 (亮暗關) 的 GUID
 GUID_CONSOLE_DISPLAY_STATE = GUID(
     0x6FE69556,
@@ -124,6 +135,23 @@ def run_as_admin() -> None:
         input("Press Enter...")
 
         sys.exit()
+
+
+def is_on_battery():
+    """
+    檢查目前是否使用電池供電
+    """
+
+    status = SYSTEM_POWER_STATUS()
+
+    if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(status)):
+        return False
+
+
+    # 0 = 沒插電
+    # 1 = 接上 AC 電源
+    # 255 = 未知
+    return status.ACLineStatus == 0
 
 
 def load_config() -> dict:
@@ -489,6 +517,7 @@ class Wallpaper(QWidget):
 
         self.auto_pause_if_fullscreen = True
         self.auto_pause_if_screen_off = True
+        self.auto_pause_if_on_battery = False
 
 
         # 掛載到桌布
@@ -687,6 +716,8 @@ class Wallpaper(QWidget):
 
         need_auto_pause = (self.auto_pause_if_screen_off and self.screen_off) or need_auto_pause
 
+        need_auto_pause = (self.auto_pause_if_on_battery and is_on_battery()) or need_auto_pause
+
 
         if need_auto_pause:
             if not self.paused:
@@ -751,6 +782,10 @@ class Tray:
         auto_pause_if_screen_off_action.setCheckable(True)
         auto_pause_if_screen_off_action.setChecked(True)
 
+        auto_pause_if_on_battery_action = QAction("沒插電時自動暫停", menu)
+        auto_pause_if_on_battery_action.setCheckable(True)
+        auto_pause_if_on_battery_action.setChecked(False)
+
         startup_action = QAction("開機自動啟動", menu)
         startup_action.setCheckable(True)
         startup_action.setChecked(task_exists())
@@ -764,6 +799,7 @@ class Tray:
 
         auto_pause_if_fullscreen_action.triggered.connect(self.toggle_auto_pause_if_fullscreen)
         auto_pause_if_screen_off_action.triggered.connect(self.toggle_auto_pause_if_screen_off)
+        auto_pause_if_on_battery_action.triggered.connect(self.toggle_auto_pause_if_on_battery)
         startup_action.triggered.connect(self.toggle_startup)
 
 
@@ -790,6 +826,7 @@ class Tray:
 
         self.options_menu.addAction(auto_pause_if_fullscreen_action)
         self.options_menu.addAction(auto_pause_if_screen_off_action)
+        self.options_menu.addAction(auto_pause_if_on_battery_action)
 
         self.options_menu.addSeparator()
 
@@ -882,6 +919,10 @@ class Tray:
 
     def toggle_auto_pause_if_screen_off(self, checked) -> None:
         self.wallpaper.auto_pause_if_screen_off = checked
+
+
+    def toggle_auto_pause_if_on_battery(self, checked) -> None:
+        self.wallpaper.auto_pause_if_on_battery = checked
 
 
     def toggle_startup(self, checked) -> None:
