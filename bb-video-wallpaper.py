@@ -441,13 +441,6 @@ class Wallpaper(QWidget):
         self.player = self.instance.media_player_new()  # type: ignore
 
 
-        # 建立圖片物件
-        self.image_label = QLabel(self)
-        self.image_label.setGeometry(self.rect())
-        self.image_label.setScaledContents(True)
-        self.image_label.hide()
-
-
         self.enable_auto_pause = True
         self.paused = False
 
@@ -456,6 +449,9 @@ class Wallpaper(QWidget):
 
         self.auto_pause_if_fullscreen = True
         self.auto_pause_if_screen_off = True
+
+
+        self.attach_to_desktop()
 
 
         # 播放
@@ -500,11 +496,6 @@ class Wallpaper(QWidget):
 
     def set_play_media(self, path: Path):
 
-        self.image_label.hide()
-        self.player.stop()
-        print("stop")
-
-
         self.current_video = path
 
         config = load_config()
@@ -512,31 +503,20 @@ class Wallpaper(QWidget):
         save_config(config)
 
 
-        suffix = path.suffix.lower()
+        self.player.stop()
+        print("stop")
 
-        if suffix in SUPPORTED_VIDEO_EXTENSIONS:
 
-            media = self.instance.media_new(str(path))  # type: ignore
-            self.player.set_media(media)
+        media = self.instance.media_new(str(path))  # type: ignore
+        self.player.set_media(media)
+        self.player.play()
 
-            self.player.play()
-            print("play")
 
-            self.enable_auto_pause = True
-            self.paused = False
+        self.enable_auto_pause = path.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
 
-            return
 
-        elif suffix in SUPPORTED_IMAGE_EXTENSIONS:
-
-            pixmap = QPixmap(str(path))
-            self.image_label.setPixmap(pixmap)
-
-            self.image_label.show()
-            print("play")
-
-            self.enable_auto_pause = False
-            self.paused = False
+        self.paused = False
+        print("play")
 
 
     def attach_to_desktop(self):
@@ -702,27 +682,23 @@ class Tray:
 
             if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
-                self.wallpaper.player.play()
                 self.wallpaper.enable_auto_pause = True
-                self.wallpaper.paused = False
 
-            else:
-                self.wallpaper.image_label.show()
 
+            self.wallpaper.player.play()
+            self.wallpaper.paused = False
             print("play")
 
 
     def pause(self):
-            
+
         if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
             self.wallpaper.player.pause()
             self.wallpaper.enable_auto_pause = False
-            self.wallpaper.paused = True
 
-        else:
-            pass
 
+        self.wallpaper.paused = True
         print("pause")
 
 
@@ -730,13 +706,11 @@ class Tray:
             
         if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
-            self.wallpaper.player.stop()
             self.wallpaper.enable_auto_pause = False
-            self.wallpaper.paused = True
 
-        else:
-            self.wallpaper.image_label.hide()
 
+        self.wallpaper.player.stop()
+        self.wallpaper.paused = True
         print("stop")
 
 
@@ -817,9 +791,6 @@ if __name__ == "__main__":
     # 建立播放器
     w = Wallpaper()
     w.show()
-
-    # 塞進 Windows 桌布層
-    w.attach_to_desktop()
 
 
     tray = Tray(app, w)
