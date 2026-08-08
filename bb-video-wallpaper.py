@@ -10,9 +10,9 @@ import win32api
 import ctypes
 from ctypes import wintypes
 
-from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QLabel
+from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QFont, QPixmap
+from PySide6.QtGui import QAction, QIcon, QFont
 
 
 if getattr(sys, "frozen", False):
