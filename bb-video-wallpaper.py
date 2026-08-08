@@ -340,7 +340,7 @@ def set_windows_as_wallpaper(hwnd):
         )
 
 
-def is_foreground_fullscreen():
+def is_foreground_fullscreen(wallpaper_hwnd):
     """
     偵測畫面上是否有全螢幕程式
     """
@@ -354,8 +354,6 @@ def is_foreground_fullscreen():
     if not hwnd:
         return False
 
-
-    wallpaper_hwnd = int(w.winId())
 
     # 自己不算
     if hwnd == wallpaper_hwnd:
@@ -422,6 +420,10 @@ class Wallpaper(QWidget):
         super().__init__()
 
 
+        # 用於防止重複執行重建的標記
+        self.is_recreating = False
+
+
         self.current_video: Path | None = None
         videos = get_media()
         config = load_config()
@@ -437,9 +439,7 @@ class Wallpaper(QWidget):
             self.current_video = videos[0]
 
 
-        # 建立無邊框視窗
-        # FramelessWindowHint: 移除標題列, 邊框
-        # Tool: 不出現在工作列
+        # 建立視窗
         self.setWindowFlags(
             Qt.FramelessWindowHint |     # type: ignore
             Qt.Tool |                    # type: ignore
@@ -475,6 +475,7 @@ class Wallpaper(QWidget):
         self.auto_pause_if_screen_off = True
 
 
+        # 掛載到桌布
         self.attach_to_desktop()
 
 
@@ -515,7 +516,72 @@ class Wallpaper(QWidget):
 
                     return True, 0
 
+
+            # 監聽 切換虛擬桌面/用戶 時的 WM_DESTROY 訊息
+            if msg.message == win32con.WM_DESTROY:
+
+                if not self.is_recreating:
+
+                    # 重新掛載
+                    QTimer.singleShot(200, self.reattach_to_desktop)
+
+                return True, 0
+
+
         return super().nativeEvent(eventType, message)  # type: ignore
+
+
+    def reattach_to_desktop(self):
+        """
+        重新建立視窗並掛載桌布
+        """
+
+        if self.is_recreating:
+            return
+        self.is_recreating = True
+
+        # 紀錄當前播放時間進度
+        curr_time = self.player.get_time()
+
+
+        self.unregister_power_notification()
+        self.hide()
+
+
+        # 銷毀失效的 HWND , 重新向 Windows 申請新的 HWND
+        self.destroy(True, True)
+        self.create()
+
+
+        # 建立視窗
+        screen = QApplication.primaryScreen()
+
+        self.setGeometry(screen.geometry())
+
+        self.setWindowFlags(
+            Qt.FramelessWindowHint |     # type: ignore
+            Qt.Tool |                    # type: ignore
+            Qt.WindowDoesNotAcceptFocus  # type: ignore
+        )
+
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)  # type: ignore
+        self.show()
+
+
+        # 掛載到桌布
+        self.attach_to_desktop()
+
+
+        # 恢復播放與時間進度
+        if self.current_video:
+
+            self.set_play_media(self.current_video)
+
+            if curr_time > 0:
+                self.player.set_time(curr_time)
+
+
+        self.is_recreating = False
 
 
     def set_play_media(self, path: Path):
@@ -588,13 +654,20 @@ class Wallpaper(QWidget):
         檢查是否需要自動暫停
         """
 
+        # 若正在重建視窗則跳過
+        if not self.enable_auto_pause or self.is_recreating:
+            return
+
         if not self.enable_auto_pause:
             return
 
 
+        hwnd = int(self.winId())
+
+
         need_auto_pause = False
 
-        need_auto_pause = (self.auto_pause_if_fullscreen and is_foreground_fullscreen()) or need_auto_pause
+        need_auto_pause = (self.auto_pause_if_fullscreen and is_foreground_fullscreen(hwnd)) or need_auto_pause
 
         need_auto_pause = (self.auto_pause_if_screen_off and self.screen_off) or need_auto_pause
 
