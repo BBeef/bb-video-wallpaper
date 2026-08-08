@@ -322,7 +322,7 @@ def set_windows_as_wallpaper(hwnd):
         new_workerw = win32gui.FindWindowEx(progman, None, "WorkerW", None)
         if not new_workerw:
             new_workerw = create_workerw(progman)
-            
+
         ctypes.windll.user32.SetParent(hwnd, new_workerw)
 
     else:
@@ -376,7 +376,7 @@ def is_foreground_fullscreen():
         monitor_left, monitor_top, monitor_right, monitor_bottom = info["Work"]
     except Exception:
         return False
-    
+
     try:
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
     except Exception:
@@ -703,7 +703,7 @@ class Tray:
 
 
     def stop(self):
-            
+
         if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
             self.wallpaper.enable_auto_pause = False
