@@ -10,10 +10,9 @@ import win32api
 import ctypes
 from ctypes import wintypes
 
-from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
+from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QLabel
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QIcon
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QAction, QIcon, QFont, QPixmap
 
 
 if getattr(sys, "frozen", False):
@@ -102,6 +101,7 @@ ctypes.windll.user32.UnregisterPowerSettingNotification.argtypes = [
 
 
 SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi",}
+SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp",}
 
 
 def run_as_admin():
@@ -212,15 +212,19 @@ def task_exists():
     return result.returncode == 0
 
 
-def get_videos():
+def get_media():
 
     return [
-        v
-        for v in sorted(
+        p
+        for p in sorted(
             VIDEO_DIR.iterdir(),
             key=lambda p: p.name.casefold()
         )
-        if v.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
+        if (
+            p.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
+            or
+            p.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+        )
     ]
 
 
@@ -395,7 +399,7 @@ class Wallpaper(QWidget):
 
 
         self.current_video: Path | None = None
-        videos = get_videos()
+        videos = get_media()
         config = load_config()
         recent = config.get("recentVideo")
 
@@ -436,25 +440,32 @@ class Wallpaper(QWidget):
         # 建立 VLC 播放器物件
         self.player = self.instance.media_player_new()  # type: ignore
 
-        # 建立影片媒體
-        if self.current_video:
-            media = self.instance.media_new(str(self.current_video))  # type: ignore
-            self.player.set_media(media)
+
+        # 建立圖片物件
+        self.image_label = QLabel(self)
+        self.image_label.setGeometry(self.rect())
+        self.image_label.setScaledContents(True)
+        self.image_label.hide()
 
 
         self.enable_auto_pause = True
         self.paused = False
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.check_auto_pause)
-        self.timer.start(500)
-
 
         self.screen_off = False
         self.power_notify = None
 
         self.auto_pause_if_fullscreen = True
         self.auto_pause_if_screen_off = True
+
+
+        # 播放
+        if self.current_video:
+            self.set_play_media(self.current_video)
+
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check_auto_pause)
+        self.timer.start(500)
 
 
     def nativeEvent(self, eventType, message):
@@ -487,13 +498,12 @@ class Wallpaper(QWidget):
         return super().nativeEvent(eventType, message)  # type: ignore
 
 
-    def set_video(self, path: Path):
+    def set_play_media(self, path: Path):
 
+        self.image_label.hide()
         self.player.stop()
         print("stop")
 
-        media = self.instance.media_new(str(path))  # type: ignore
-        self.player.set_media(media)
 
         self.current_video = path
 
@@ -501,10 +511,32 @@ class Wallpaper(QWidget):
         config["recentVideo"] = path.name
         save_config(config)
 
-        self.player.play()
-        self.enable_auto_pause = True
-        self.paused = False
-        print("play")
+
+        suffix = path.suffix.lower()
+
+        if suffix in SUPPORTED_VIDEO_EXTENSIONS:
+
+            media = self.instance.media_new(str(path))  # type: ignore
+            self.player.set_media(media)
+
+            self.player.play()
+            print("play")
+
+            self.enable_auto_pause = True
+            self.paused = False
+
+            return
+
+        elif suffix in SUPPORTED_IMAGE_EXTENSIONS:
+
+            pixmap = QPixmap(str(path))
+            self.image_label.setPixmap(pixmap)
+
+            self.image_label.show()
+            print("play")
+
+            self.enable_auto_pause = False
+            self.paused = False
 
 
     def attach_to_desktop(self):
@@ -667,23 +699,44 @@ class Tray:
 
     def play(self):
         if self.wallpaper.current_video:
-            self.wallpaper.player.play()
-            self.wallpaper.enable_auto_pause = True
-            self.wallpaper.paused = False
+
+            if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+
+                self.wallpaper.player.play()
+                self.wallpaper.enable_auto_pause = True
+                self.wallpaper.paused = False
+
+            else:
+                self.wallpaper.image_label.show()
+
             print("play")
 
 
     def pause(self):
-        self.wallpaper.player.pause()
-        self.wallpaper.enable_auto_pause = False
-        self.wallpaper.paused = True
+            
+        if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+
+            self.wallpaper.player.pause()
+            self.wallpaper.enable_auto_pause = False
+            self.wallpaper.paused = True
+
+        else:
+            pass
+
         print("pause")
 
 
     def stop(self):
-        self.wallpaper.player.stop()
-        self.wallpaper.enable_auto_pause = False
-        self.wallpaper.paused = True
+            
+        if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+
+            self.wallpaper.player.stop()
+            self.wallpaper.enable_auto_pause = False
+            self.wallpaper.paused = True
+
+        else:
+            self.wallpaper.image_label.hide()
+
         print("stop")
 
 
@@ -691,7 +744,7 @@ class Tray:
 
         self.video_menu.clear()
 
-        videos = get_videos()
+        videos = get_media()
 
         if not videos:
             action = QAction("沒有影片", self.video_menu)
@@ -704,7 +757,7 @@ class Tray:
 
             action.triggered.connect(
                 lambda checked=False, v=video:
-                    self.wallpaper.set_video(v)
+                    self.wallpaper.set_play_media(v)
             )
 
             action.setCheckable(True)
@@ -767,10 +820,6 @@ if __name__ == "__main__":
 
     # 塞進 Windows 桌布層
     w.attach_to_desktop()
-
-    # 開始播放
-    if w.current_video:
-        QTimer.singleShot(100, w.player.play)
 
 
     tray = Tray(app, w)
