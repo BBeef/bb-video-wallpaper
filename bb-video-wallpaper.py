@@ -350,12 +350,19 @@ def is_foreground_fullscreen():
 
 
     hwnd = win32gui.GetForegroundWindow()
+
     if not hwnd:
         return False
 
 
+    wallpaper_hwnd = int(w.winId())
+
     # 自己不算
-    if hwnd == int(w.winId()):
+    if hwnd == wallpaper_hwnd:
+        return False
+
+    # 自己的子視窗不算
+    if win32gui.IsChild(wallpaper_hwnd, hwnd):
         return False
 
     # 隱藏視窗不算
@@ -367,18 +374,35 @@ def is_foreground_fullscreen():
         return False
 
 
+    # 取得最上層視窗
+    root_hwnd = win32gui.GetAncestor(hwnd, win32con.GA_ROOT)
+
+    # Progman 不算
+    progman = win32gui.FindWindow("Progman", "Program Manager")
+
+    if root_hwnd == progman:
+        return False
+
+    # WorkerW 不算
+    class_name = win32gui.GetClassName(root_hwnd)
+
+    if class_name == "WorkerW":
+        return False
+
+
     try:
-        monitor = win32api.MonitorFromWindow(
-            hwnd,
-            win32con.MONITOR_DEFAULTTONEAREST
-        )
+        monitor = win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
+
         info = win32api.GetMonitorInfo(monitor)
+
         monitor_left, monitor_top, monitor_right, monitor_bottom = info["Work"]
+
     except Exception:
         return False
 
     try:
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+
     except Exception:
         return False
 
@@ -530,7 +554,9 @@ class Wallpaper(QWidget):
 
         hwnd = int(self.winId())
 
+
         set_windows_as_wallpaper(hwnd)
+
 
         # 重新設定 HWND 給 VLC 指向
         self.player.set_hwnd(hwnd)
