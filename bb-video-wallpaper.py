@@ -40,9 +40,16 @@ VIDEO_DIR.mkdir(exist_ok=True)
 CONFIG_PATH = APPDATA_DIR / "config.json"
 
 
-VLC_DIR = ROOT_DIR / "VLC-Lite"
+VLC_DIR = next(
+    (
+        path
+        for path in (ROOT_DIR / "VLC-Lite", ROOT_DIR / "VLC")
+        if path.is_dir()
+    ),
+    None
+)
 
-if VLC_DIR.is_dir():
+if VLC_DIR:
     os.add_dll_directory(str(VLC_DIR))
     os.environ["PYTHON_VLC_LIB_PATH"] = str(VLC_DIR / "libvlc.dll")
     os.environ["PYTHON_VLC_MODULE_PATH"] = str(VLC_DIR)
@@ -54,7 +61,7 @@ if VLC_DIR.is_dir():
         print("VLC 載入失敗")
         sys.exit(1)
 else:
-    print("找不到 VLC/")
+    print("找不到 VLC-Lite/ 或 VLC/")
     sys.exit(1)
 
 import vlc
