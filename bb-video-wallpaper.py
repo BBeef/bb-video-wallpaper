@@ -529,7 +529,11 @@ class Wallpaper(QWidget):
 
         # 播放
         if self.current_video:
+
             self.set_play_media(self.current_video)
+
+            self.player.play()
+            print("play")
 
 
         self.timer = QTimer(self)
@@ -628,6 +632,14 @@ class Wallpaper(QWidget):
             if curr_time > 0:
                 self.player.set_time(curr_time)
 
+            if self.paused:
+                self.player.pause()
+                print("pause")
+
+            else:
+                self.player.play()
+                print("play")
+
 
         self.is_recreating = False
 
@@ -651,14 +663,14 @@ class Wallpaper(QWidget):
         # 裁切填滿螢幕
         self.player.video_set_crop_geometry(self.get_screen_aspect_ratio())
 
-        self.player.play()
 
+        if self.paused:
+            self.player.pause()
+            print("pause")
 
-        self.enable_auto_pause = path.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
-
-
-        self.paused = False
-        print("play")
+        else:
+            self.player.play()
+            print("play")
 
 
     def attach_to_desktop(self) -> None:
@@ -725,7 +737,9 @@ class Wallpaper(QWidget):
         if need_auto_pause:
             if not self.paused:
 
-                self.player.pause()
+                if self.current_video and self.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
+                    self.player.pause()
+
                 self.paused = True
                 print("pause")
 
@@ -859,14 +873,11 @@ class Tray:
     def play(self) -> None:
         if self.wallpaper.current_video:
 
-            if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
-
-                self.wallpaper.enable_auto_pause = True
-
-
             self.wallpaper.player.play()
-            self.wallpaper.paused = False
-            print("play")
+
+        self.wallpaper.enable_auto_pause = True
+        self.wallpaper.paused = False
+        print("play")
 
 
     def pause(self) -> None:
@@ -875,22 +886,17 @@ class Tray:
             if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
 
                 self.wallpaper.player.pause()
-                self.wallpaper.enable_auto_pause = False
 
 
+        self.wallpaper.enable_auto_pause = False
         self.wallpaper.paused = True
         print("pause")
 
 
     def stop(self) -> None:
-        if self.wallpaper.current_video:
-
-            if self.wallpaper.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
-
-                self.wallpaper.enable_auto_pause = False
-
 
         self.wallpaper.player.stop()
+        self.wallpaper.enable_auto_pause = False
         self.wallpaper.paused = True
         print("stop")
 
