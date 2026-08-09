@@ -530,10 +530,7 @@ class Wallpaper(QWidget):
         # 播放
         if self.current_video:
 
-            self.set_play_media(self.current_video)
-
-            self.player.play()
-            print("play")
+            self.set_play_media(self.current_video, play=True)
 
 
         self.timer = QTimer(self)
@@ -644,7 +641,7 @@ class Wallpaper(QWidget):
         self.is_recreating = False
 
 
-    def set_play_media(self, path: Path) -> None:
+    def set_play_media(self, path: Path, play: bool=False) -> None:
 
         self.current_video = path
 
@@ -664,13 +661,21 @@ class Wallpaper(QWidget):
         self.player.video_set_crop_geometry(self.get_screen_aspect_ratio())
 
 
-        if self.paused:
-            self.player.pause()
-            print("pause")
+        if play:
 
-        else:
             self.player.play()
             print("play")
+
+        else:
+
+            # 維持原樣
+            if self.paused:
+                self.player.pause()
+                print("pause")
+
+            else:
+                self.player.play()
+                print("play")
 
 
     def attach_to_desktop(self) -> None:
@@ -918,7 +923,7 @@ class Tray:
 
             action.triggered.connect(
                 lambda checked=False, v=video:
-                    self.wallpaper.set_play_media(v)
+                    self.wallpaper.set_play_media(v, play=True)
             )
 
             action.setCheckable(True)
