@@ -470,7 +470,10 @@ class Wallpaper(QWidget):
 
         self.current_video: Path | None = None
         videos = get_media()
+
+
         config = load_config()
+
         recent = config.get("recentVideo")
 
         if recent:
@@ -515,9 +518,9 @@ class Wallpaper(QWidget):
         self.screen_off = False
         self.power_notify = None
 
-        self.auto_pause_if_fullscreen = True
-        self.auto_pause_if_screen_off = True
-        self.auto_pause_if_on_battery = False
+        self.auto_pause_if_fullscreen = config.get("autoPauseIfFullscreen", True)
+        self.auto_pause_if_screen_off = config.get("autoPauseIfScreenOff", True)
+        self.auto_pause_if_on_battery = config.get("autoPauseIfOnBattery", False)
 
 
         # 掛載到桌布
@@ -756,6 +759,9 @@ class Tray:
         self.wallpaper = wallpaper
 
 
+        config = load_config()
+
+
         self.tray = QSystemTrayIcon()
         self.tray.setIcon(QIcon(str(ICON_PATH)))
         self.tray.setToolTip("BB Video Wallpaper")
@@ -776,15 +782,21 @@ class Tray:
 
         auto_pause_if_fullscreen_action = QAction("全螢幕時自動暫停", menu)
         auto_pause_if_fullscreen_action.setCheckable(True)
-        auto_pause_if_fullscreen_action.setChecked(True)
+        auto_pause_if_fullscreen_action.setChecked(
+            config.get("autoPauseIfFullscreen", True)
+        )
 
         auto_pause_if_screen_off_action = QAction("螢幕關閉時自動暫停", menu)
         auto_pause_if_screen_off_action.setCheckable(True)
-        auto_pause_if_screen_off_action.setChecked(True)
+        auto_pause_if_screen_off_action.setChecked(
+            config.get("autoPauseIfScreenOff", True)
+        )
 
         auto_pause_if_on_battery_action = QAction("沒插電時自動暫停", menu)
         auto_pause_if_on_battery_action.setCheckable(True)
-        auto_pause_if_on_battery_action.setChecked(False)
+        auto_pause_if_on_battery_action.setChecked(
+            config.get("autoPauseIfOnBattery", False)
+        )
 
         startup_action = QAction("開機自動啟動", menu)
         startup_action.setCheckable(True)
@@ -914,14 +926,29 @@ class Tray:
 
 
     def toggle_auto_pause_if_fullscreen(self, checked) -> None:
+
+        config = load_config()
+        config["autoPauseIfFullscreen"] = checked
+        save_config(config)
+
         self.wallpaper.auto_pause_if_fullscreen = checked
 
 
     def toggle_auto_pause_if_screen_off(self, checked) -> None:
+
+        config = load_config()
+        config["autoPauseIfScreenOff"] = checked
+        save_config(config)
+
         self.wallpaper.auto_pause_if_screen_off = checked
 
 
     def toggle_auto_pause_if_on_battery(self, checked) -> None:
+
+        config = load_config()
+        config["autoPauseIfOnBattery"] = checked
+        save_config(config)
+
         self.wallpaper.auto_pause_if_on_battery = checked
 
 
