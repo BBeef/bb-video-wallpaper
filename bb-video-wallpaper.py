@@ -922,14 +922,19 @@ class Tray:
             action = QAction(video.stem, self.video_menu)
 
             action.triggered.connect(
-                lambda checked=False, v=video:
-                    self.wallpaper.set_play_media(v, play=True)
+                lambda checked=False, v=video: self.play_from_menu(v)
             )
 
             action.setCheckable(True)
             action.setChecked(video == self.wallpaper.current_video)
 
             self.video_menu.addAction(action)
+
+
+    def play_from_menu(self, v):
+        self.wallpaper.set_play_media(v, play=True)
+        self.wallpaper.enable_auto_pause = True
+        self.wallpaper.paused = False
 
 
     def open_video_folder(self) -> None:
