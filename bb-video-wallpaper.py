@@ -40,7 +40,7 @@ VIDEO_DIR.mkdir(exist_ok=True)
 CONFIG_PATH = APPDATA_DIR / "config.json"
 
 
-VLC_DIR = ROOT_DIR / "VLC"
+VLC_DIR = ROOT_DIR / "VLC-Lite"
 
 if VLC_DIR.is_dir():
     os.add_dll_directory(str(VLC_DIR))

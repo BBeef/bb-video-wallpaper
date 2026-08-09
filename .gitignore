@@ -8,6 +8,7 @@ __pycache__/
 installer/
 video/
 VLC/
+VLC-Lite/
 
 .directory
 config.json
