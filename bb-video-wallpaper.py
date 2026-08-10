@@ -43,7 +43,7 @@ CONFIG_PATH = APPDATA_DIR / "config.json"
 VLC_DIR = next(
     (
         path
-        for path in (ROOT_DIR / "VLC-Lite", ROOT_DIR / "VLC")
+        for path in (ROOT_DIR / "VLC-lite", ROOT_DIR / "VLC")
         if path.is_dir()
     ),
     None
@@ -61,7 +61,7 @@ if VLC_DIR:
         print("VLC 載入失敗")
         sys.exit(1)
 else:
-    print("找不到 VLC-Lite/ 或 VLC/")
+    print("找不到 VLC-lite/ 或 VLC/")
     sys.exit(1)
 
 import vlc

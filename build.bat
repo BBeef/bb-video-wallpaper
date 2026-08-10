@@ -29,7 +29,7 @@ if errorlevel 1 (
 echo.
 echo [3/3] Copying VLC files...
 
-xcopy /E /I /Y "VLC-Lite" "dist\BB Video Wallpaper\VLC"
+xcopy /E /I /Y "VLC-lite" "dist\BB Video Wallpaper\VLC"
 copy /Y "libvlc.dll" "dist\BB Video Wallpaper\libvlc.dll"
 
 echo.
