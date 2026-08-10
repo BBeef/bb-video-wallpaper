@@ -18,3 +18,4 @@ libvlc.dll
 frozen.txt
 
 *.spec
+*.exe
