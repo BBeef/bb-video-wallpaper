@@ -13,6 +13,8 @@ VLC-lite/
 .directory
 config.json
 
+libvlc.dll
+
 frozen.txt
 
 *.spec
