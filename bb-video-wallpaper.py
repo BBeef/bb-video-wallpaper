@@ -393,7 +393,7 @@ def set_windows_as_wallpaper(hwnd) -> None:
 
 def is_foreground_fullscreen(wallpaper_hwnd) -> bool:
     """
-    偵測畫面上是否有全螢幕程式
+    偵測畫面上是否有視窗最大化程式
     """
 
     # 邊界容許值
@@ -806,7 +806,7 @@ class Tray:
         open_video_action.triggered.connect(self.open_video_folder)
 
 
-        auto_pause_if_fullscreen_action = QAction("全螢幕時自動暫停", menu)
+        auto_pause_if_fullscreen_action = QAction("視窗最大化時自動暫停", menu)
         auto_pause_if_fullscreen_action.setCheckable(True)
         auto_pause_if_fullscreen_action.setChecked(
             config.get("autoPauseIfFullscreen", True)
