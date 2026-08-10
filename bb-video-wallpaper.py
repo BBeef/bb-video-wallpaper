@@ -391,28 +391,14 @@ def set_windows_as_wallpaper(hwnd) -> None:
         )
 
 
-def is_foreground_fullscreen(wallpaper_hwnd) -> bool:
+def is_fullscreen(hwnd) -> bool:
     """
-    偵測畫面上是否有視窗最大化程式
+    偵測視窗是否最大化
     """
 
     # 邊界容許值
     FULLSCREEN_MARGIN = 4
 
-
-    hwnd = win32gui.GetForegroundWindow()
-
-    if not hwnd:
-        return False
-
-
-    # 自己不算
-    if hwnd == wallpaper_hwnd:
-        return False
-
-    # 自己的子視窗不算
-    if win32gui.IsChild(wallpaper_hwnd, hwnd):
-        return False
 
     # 隱藏視窗不算
     if not win32gui.IsWindowVisible(hwnd):
@@ -433,9 +419,26 @@ def is_foreground_fullscreen(wallpaper_hwnd) -> bool:
         return False
 
     # WorkerW 不算
+    # 自己的桌面相關視窗不算
     class_name = win32gui.GetClassName(root_hwnd)
 
-    if class_name == "WorkerW":
+    shell_classes = {
+        "Progman",
+        "WorkerW",
+        "Shell_TrayWnd",
+        "Shell_SecondaryTrayWnd",
+    }
+
+    if class_name in shell_classes:
+        return False
+
+    # 開始功能表相關視窗不算
+    window_title = win32gui.GetWindowText(root_hwnd)
+
+    if window_title in {
+        "開始",
+        "Start",
+    }:
         return False
 
 
@@ -462,6 +465,43 @@ def is_foreground_fullscreen(wallpaper_hwnd) -> bool:
         right >= monitor_right - FULLSCREEN_MARGIN and
         bottom >= monitor_bottom - FULLSCREEN_MARGIN
     )
+
+
+fullscreen_windows = set()
+
+
+def is_any_fullscreen(wallpaper_hwnd) -> bool:
+    """
+    偵測是否有任何視窗最大化
+    """
+
+    hwnd = win32gui.GetForegroundWindow()
+
+    if (
+        hwnd == wallpaper_hwnd or               # 自己不算
+        win32gui.IsChild(wallpaper_hwnd, hwnd)  # 自己的子視窗不算
+    ):
+        hwnd = None
+
+
+    windows_new = set()
+
+
+    if hwnd:
+        fullscreen_windows.add(hwnd)
+
+
+    for h in fullscreen_windows:
+        if is_fullscreen(h):
+            windows_new.add(h)
+
+
+    # 更新快取
+    fullscreen_windows.clear()
+    fullscreen_windows.update(windows_new)
+
+
+    return bool(fullscreen_windows)
 
 
 class Wallpaper(QWidget):
@@ -739,7 +779,7 @@ class Wallpaper(QWidget):
 
         need_auto_pause = False
 
-        need_auto_pause = (self.auto_pause_if_fullscreen and is_foreground_fullscreen(hwnd)) or need_auto_pause
+        need_auto_pause = (self.auto_pause_if_fullscreen and is_any_fullscreen(hwnd)) or need_auto_pause
 
         need_auto_pause = (self.auto_pause_if_screen_off and self.screen_off) or need_auto_pause
 
