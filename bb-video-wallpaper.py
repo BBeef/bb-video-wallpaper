@@ -3,6 +3,7 @@ import os
 import subprocess
 import json
 from pathlib import Path
+import time
 
 import win32gui
 import win32con
@@ -1052,8 +1053,11 @@ class Tray:
 
 if __name__ == "__main__":
 
-    if "--task" not in sys.argv:
-        # 不是工作排程啟動
+    if "--task" in sys.argv:
+        # 排程啟動, 剛開機等一下
+        time.sleep(1)
+
+    else:
         run_as_admin()
 
 
