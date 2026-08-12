@@ -186,13 +186,31 @@ def load_config() -> dict:
 
 def save_config(config) -> None:
 
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(
-            config,
-            f,
-            indent=2,
-            ensure_ascii=False
-        )
+    temp_path = CONFIG_PATH.with_suffix(".tmp")
+
+    try:
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(
+                config,
+                f,
+                indent=2,
+                ensure_ascii=False
+            )
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(temp_path, CONFIG_PATH)
+
+    except Exception as e:
+        print(f"儲存 config 時發生錯誤")
+        print(f" > {e}")
+
+        try:
+            if temp_path.exists():
+                temp_path.unlink()
+
+        except Exception:
+            pass
 
 
 def create_task() -> None:
@@ -565,8 +583,10 @@ class Wallpaper(QWidget):
         super().__init__()
 
 
-        # 用於防止重複執行重建的標記
+        # 正在重建或退出
         self.is_recreating = False
+        self.reattach_retry_count = 0
+        self.is_exiting = False
 
 
         self.current_video: Path | None = None
@@ -707,9 +727,14 @@ class Wallpaper(QWidget):
         重新建立視窗並掛載桌布
         """
 
+        if self.is_exiting:
+            return
+
         if self.is_recreating:
             return
+
         self.is_recreating = True
+
 
         try:
 
@@ -758,13 +783,25 @@ class Wallpaper(QWidget):
 
 
             print("reattach_to_desktop - finish")
+            self.is_recreating = False
+            self.reattach_retry_count = 0
 
         except Exception as e:
+
             print(f"重新掛載桌布時發生錯誤")
             print(f" > {e}")
 
-        finally:
             self.is_recreating = False
+
+            if self.reattach_retry_count < 2:
+
+                self.reattach_retry_count += 1
+
+                print("正在重試")
+                QTimer.singleShot(2000, self.reattach_to_desktop)
+
+            else:
+                print("重新掛載桌布失敗")
 
 
     def set_play_media(self, path: Path) -> None:
@@ -1112,6 +1149,7 @@ class Tray:
 
     def exit(self) -> None:
         try:
+            self.wallpaper.is_exiting = True
 
             self.wallpaper.unregister_power_notification()
 
