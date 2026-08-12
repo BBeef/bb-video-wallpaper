@@ -128,6 +128,7 @@ ctypes.windll.user32.UnregisterPowerSettingNotification.argtypes = [
 
 SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi",}
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp",}
+SUPPORTED_MEDIA_EXTENSIONS = (SUPPORTED_VIDEO_EXTENSIONS | SUPPORTED_IMAGE_EXTENSIONS)
 
 
 def run_as_admin() -> None:
@@ -137,6 +138,7 @@ def run_as_admin() -> None:
 
     try:
         is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+
     except Exception:
         is_admin = False
 
@@ -148,7 +150,7 @@ def run_as_admin() -> None:
         sys.exit()
 
 
-def is_on_battery():
+def is_on_battery() -> bool:
     """
     檢查目前是否使用電池供電
     """
@@ -174,7 +176,11 @@ def load_config() -> dict:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    except Exception:
+    except Exception as e:
+
+        print(f"讀取config時發生錯誤")
+        print(f" > {e}")
+
         return {}
 
 
@@ -264,21 +270,17 @@ def task_exists() -> bool:
     return result.returncode == 0
 
 
-def get_media() -> list:
+def get_media() -> list[Path]:
     """
     從 VIDEO_DIR 取得媒體
     """
 
     return [
         p
-        for p in sorted(
-            VIDEO_DIR.iterdir(),
-            key=lambda p: p.name.casefold()
-        )
+        for p in sorted(VIDEO_DIR.iterdir(), key=lambda p: p.name.casefold())
         if (
-            p.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
-            or
-            p.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+            p.is_file() and
+            p.suffix.lower() in SUPPORTED_MEDIA_EXTENSIONS
         )
     ]
 
@@ -631,8 +633,7 @@ class Wallpaper(QWidget):
 
             self.set_play_media(self.current_video)
 
-            self.player.play()
-            self.play_state = "play"
+            self.media_play()
             print("init - play")
 
 
@@ -683,6 +684,24 @@ class Wallpaper(QWidget):
         return super().nativeEvent(eventType, message)  # type: ignore
 
 
+    def media_play(self) -> None:
+
+        self.player.play()
+        self.play_state = "play"
+
+
+    def media_pause(self) -> None:
+
+        self.player.pause()
+        self.play_state = "pause"
+
+
+    def media_stop(self) -> None:
+
+        self.player.stop()
+        self.play_state = "stop"
+
+
     def reattach_to_desktop(self) -> None:
         """
         重新建立視窗並掛載桌布
@@ -692,56 +711,66 @@ class Wallpaper(QWidget):
             return
         self.is_recreating = True
 
-        
-        print("reattach_to_desktop - start")
+        try:
+
+            print("reattach_to_desktop - start")
 
 
-        # 紀錄當前播放時間進度
-        curr_time = self.player.get_time()
+            # 紀錄當前播放時間進度
+            curr_time = self.player.get_time()
 
 
-        self.unregister_power_notification()
-        self.hide()
+            self.unregister_power_notification()
+            self.hide()
 
 
-        # 銷毀失效的 HWND , 重新向 Windows 申請新的 HWND
-        self.destroy(True, True)
-        self.create()
+            # 銷毀失效的 HWND , 重新向 Windows 申請新的 HWND
+            self.destroy(True, True)
+            self.create()
 
 
-        # 建立視窗
-        screen = QApplication.primaryScreen()
+            # 建立視窗
+            screen = QApplication.primaryScreen()
 
-        self.setGeometry(screen.geometry())
+            self.setGeometry(screen.geometry())
 
-        self.setWindowFlags(
-            Qt.FramelessWindowHint |     # type: ignore
-            Qt.Tool |                    # type: ignore
-            Qt.WindowDoesNotAcceptFocus  # type: ignore
-        )
+            self.setWindowFlags(
+                Qt.FramelessWindowHint |     # type: ignore
+                Qt.Tool |                    # type: ignore
+                Qt.WindowDoesNotAcceptFocus  # type: ignore
+            )
 
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)  # type: ignore
-        self.show()
-
-
-        # 掛載到桌布
-        self.attach_to_desktop()
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)  # type: ignore
+            self.show()
 
 
-        # 恢復播放與時間進度
-        if self.current_video:
-
-            self.set_play_media(self.current_video)
-
-            if curr_time > 0:
-                self.player.set_time(curr_time)
+            # 掛載到桌布
+            self.attach_to_desktop()
 
 
-        print("reattach_to_desktop - finish")
-        self.is_recreating = False
+            # 恢復播放與時間進度
+            if self.current_video:
+
+                self.set_play_media(self.current_video)
+
+                if curr_time > 0:
+                    self.player.set_time(curr_time)
+
+
+            print("reattach_to_desktop - finish")
+
+        except Exception as e:
+            print(f"重新掛載桌布時發生錯誤")
+            print(f" > {e}")
+
+        finally:
+            self.is_recreating = False
 
 
     def set_play_media(self, path: Path) -> None:
+        """
+        把媒體檔案給VLC
+        """
 
         self.current_video = path
 
@@ -750,7 +779,10 @@ class Wallpaper(QWidget):
         save_config(config)
 
 
-        self.player.stop()
+        previous_play_state = self.play_state
+
+
+        self.media_stop()
         print("set_play_media - stop")
 
 
@@ -763,19 +795,19 @@ class Wallpaper(QWidget):
 
 
         # 讓畫面跑出來
-        self.player.play()
+        self.media_play()
         print("set_play_media - play")
 
 
         # 回復原樣
-        if self.play_state == "pause":
+        if previous_play_state == "pause":
 
-            self.player.pause()
+            self.media_pause()
             print("set_play_media - pause")
 
-        elif self.play_state == "stop":
+        elif previous_play_state == "stop":
 
-            self.player.stop()
+            self.media_stop()
             print("set_play_media - stop")
 
 
@@ -827,33 +859,31 @@ class Wallpaper(QWidget):
         if not self.enable_auto_pause:
             return
 
+        # 圖片不需要暫停
+        if self.current_video and self.current_video.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+            return
+
 
         hwnd = int(self.winId())
 
 
-        need_auto_pause = False
-
-        need_auto_pause = (self.auto_pause_if_fullscreen and is_any_fullscreen(hwnd)) or need_auto_pause
-
-        need_auto_pause = (self.auto_pause_if_screen_off and self.screen_off) or need_auto_pause
-
-        need_auto_pause = (self.auto_pause_if_on_battery and is_on_battery()) or need_auto_pause
+        need_auto_pause = (
+            (self.auto_pause_if_fullscreen and is_any_fullscreen(hwnd)) or
+            (self.auto_pause_if_screen_off and self.screen_off) or
+            (self.auto_pause_if_on_battery and is_on_battery())
+        )
 
 
         if need_auto_pause:
             if self.play_state == "play":
 
-                if self.current_video and self.current_video.suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS:
-                    self.player.pause()
-
-                self.play_state = "pause"
+                self.media_pause()
                 print("auto_pause - pause")
 
         else:
             if self.play_state == "pause":
 
-                self.player.play()
-                self.play_state = "play"
+                self.media_play()
                 print("auto_pause - play")
 
 
@@ -863,11 +893,14 @@ class Wallpaper(QWidget):
         """
 
         if self.power_notify:
+
             try:
                 ctypes.windll.user32.UnregisterPowerSettingNotification(self.power_notify)
+
             except Exception as e:
                 print(f"取消註冊電源通知時發生錯誤")
                 print(f" > {e}")
+
             finally:
                 self.power_notify = None
 
@@ -930,9 +963,28 @@ class Tray:
         exit_action.triggered.connect(self.exit)
 
 
-        auto_pause_if_fullscreen_action.triggered.connect(self.toggle_auto_pause_if_fullscreen)
-        auto_pause_if_screen_off_action.triggered.connect(self.toggle_auto_pause_if_screen_off)
-        auto_pause_if_on_battery_action.triggered.connect(self.toggle_auto_pause_if_on_battery)
+        auto_pause_if_fullscreen_action.triggered.connect(
+            lambda checked: self.set_auto_pause_option(
+                "autoPauseIfFullscreen",
+                "auto_pause_if_fullscreen",
+                checked,
+            )
+        )
+        auto_pause_if_screen_off_action.triggered.connect(
+            lambda checked: self.set_auto_pause_option(
+                "autoPauseIfScreenOff",
+                "auto_pause_if_screen_off",
+                checked,
+            )
+        )
+        auto_pause_if_on_battery_action.triggered.connect(
+            lambda checked: self.set_auto_pause_option(
+                "autoPauseIfOnBattery",
+                "auto_pause_if_on_battery",
+                checked,
+            )
+        )
+
         startup_action.triggered.connect(self.toggle_startup)
 
 
@@ -980,11 +1032,9 @@ class Tray:
     def play(self) -> None:
         if self.wallpaper.current_video:
 
-            self.wallpaper.player.play()
-
-        self.wallpaper.enable_auto_pause = True
-        self.wallpaper.play_state = "play"
-        print("manual - play")
+            self.wallpaper.media_play()
+            self.wallpaper.enable_auto_pause = True
+            print("manual - play")
 
 
     def pause(self) -> None:
@@ -994,19 +1044,16 @@ class Tray:
 
                 if self.wallpaper.play_state == "play":
 
-                    self.wallpaper.player.pause()
-
+                    self.wallpaper.media_pause()
 
         self.wallpaper.enable_auto_pause = False
-        self.wallpaper.play_state = "pause"
         print("manual - pause")
 
 
     def stop(self) -> None:
 
-        self.wallpaper.player.stop()
+        self.wallpaper.media_stop()
         self.wallpaper.enable_auto_pause = False
-        self.wallpaper.play_state = "stop"
         print("manual - stop")
 
 
@@ -1035,47 +1082,25 @@ class Tray:
             self.video_menu.addAction(action)
 
 
-    def play_from_menu(self, v):
-        self.wallpaper.set_play_media(v)
+    def play_from_menu(self, path: Path):
 
-        if self.wallpaper.current_video:
-
-            self.wallpaper.player.play()
-
-            self.wallpaper.enable_auto_pause = True
-            self.wallpaper.play_state = "play"
-            print("play_from_menu - play")
+        self.wallpaper.set_play_media(path)
+        self.wallpaper.media_play()
+        self.wallpaper.enable_auto_pause = True
+        print("play_from_menu - play")
 
 
     def open_video_folder(self) -> None:
         os.startfile(str(VIDEO_DIR))
 
 
-    def toggle_auto_pause_if_fullscreen(self, checked) -> None:
+    def set_auto_pause_option(self, config_key: str, attribute: str, checked: bool) -> None:
 
         config = load_config()
-        config["autoPauseIfFullscreen"] = checked
+        config[config_key] = checked
         save_config(config)
 
-        self.wallpaper.auto_pause_if_fullscreen = checked
-
-
-    def toggle_auto_pause_if_screen_off(self, checked) -> None:
-
-        config = load_config()
-        config["autoPauseIfScreenOff"] = checked
-        save_config(config)
-
-        self.wallpaper.auto_pause_if_screen_off = checked
-
-
-    def toggle_auto_pause_if_on_battery(self, checked) -> None:
-
-        config = load_config()
-        config["autoPauseIfOnBattery"] = checked
-        save_config(config)
-
-        self.wallpaper.auto_pause_if_on_battery = checked
+        setattr(self.wallpaper, attribute, checked)
 
 
     def toggle_startup(self, checked) -> None:
@@ -1090,13 +1115,14 @@ class Tray:
 
             self.wallpaper.unregister_power_notification()
 
-            self.wallpaper.player.stop()
+            self.wallpaper.media_stop()
 
             self.wallpaper.player.release()
             self.wallpaper.instance.release()
 
-        except:
-            pass
+        except Exception as e:
+            print(f"退出時發生錯誤")
+            print(f" > {e}")
 
         self.app.quit()
         print("exit")
