@@ -15,6 +15,9 @@ from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QFont
 
+from comtypes import GUID as ComGUID, HRESULT, IUnknown, COMMETHOD
+from comtypes.client import CreateObject
+
 
 if getattr(sys, "frozen", False):
 
@@ -392,6 +395,49 @@ def set_windows_as_wallpaper(hwnd) -> None:
         )
 
 
+CLSID_VIRTUAL_DESKTOP_MANAGER = ComGUID(
+    "{AA509086-5CA9-4C25-8F95-589D3C07B48A}"
+)
+
+
+class IVirtualDesktopManager(IUnknown):
+    _iid_ = ComGUID("{A5CD92FF-29BE-454C-8D04-D82879FB3F1B}")
+    _methods_ = [
+        COMMETHOD(
+            [],
+            HRESULT,
+            "IsWindowOnCurrentVirtualDesktop",
+            (["in"], wintypes.HWND, "top_level_window"),
+            (["out"], ctypes.POINTER(wintypes.BOOL), "on_current_desktop"),
+        ),
+    ]
+
+
+_virtual_desktop_manager = None
+
+
+def is_on_current_desktop(hwnd: int) -> bool:
+    """
+    視窗是否在目前桌面
+    """
+
+    global _virtual_desktop_manager
+
+    try:
+
+        if _virtual_desktop_manager is None:
+
+            _virtual_desktop_manager = CreateObject(
+                CLSID_VIRTUAL_DESKTOP_MANAGER,
+                interface=IVirtualDesktopManager,
+            )
+
+        return bool(_virtual_desktop_manager.IsWindowOnCurrentVirtualDesktop(hwnd))  # type: ignore
+    
+    except Exception:
+        return False
+
+
 def is_fullscreen(hwnd) -> bool:
     """
     偵測視窗是否最大化
@@ -412,6 +458,11 @@ def is_fullscreen(hwnd) -> bool:
 
     # 取得最上層視窗
     root_hwnd = win32gui.GetAncestor(hwnd, win32con.GA_ROOT)
+
+
+    # 不在目前桌面不算
+    if not is_on_current_desktop(root_hwnd):
+        return False
 
     # Progman 不算
     progman = win32gui.FindWindow("Progman", "Program Manager")
