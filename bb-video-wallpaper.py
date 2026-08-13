@@ -23,7 +23,7 @@ if getattr(sys, "frozen", False):
 
     FILE = Path(sys.executable).resolve()
     ROOT_DIR = FILE.parent
-    ICON_PATH = ROOT_DIR/ "_internal" / "icon" / "bb-video-wallpaper.ico"
+    ICON_PATH = ROOT_DIR / "_internal" / "icon" / "bb-video-wallpaper.ico"
 
 else:
 
@@ -519,6 +519,7 @@ def is_fullscreen(hwnd) -> bool:
 
         info = win32api.GetMonitorInfo(monitor)
 
+        # info["Monitor"]: 整個螢幕, info["Work"]: 不包含工作列
         monitor_left, monitor_top, monitor_right, monitor_bottom = info["Work"]
 
     except Exception:
@@ -636,8 +637,17 @@ class Wallpaper(QWidget):
         self.enable_auto_pause = True
         self.play_state = "stop"  # "play", "pause", "stop"
 
+
+        self.fullscreen_detection_ready = False
+
+        QTimer.singleShot(10000, self.enable_fullscreen_detection)
+
+
+        # 螢幕亮滅
         self.screen_off = False
+        # 監聽螢幕亮滅的事件
         self.power_notify = None
+
 
         self.auto_pause_if_fullscreen = config.get("autoPauseIfFullscreen", True)
         self.auto_pause_if_screen_off = config.get("autoPauseIfScreenOff", True)
@@ -884,6 +894,14 @@ class Wallpaper(QWidget):
         return f"{width}:{height}"
 
 
+    def enable_fullscreen_detection(self) -> None:
+        """
+        啟動全螢幕視窗偵測
+        """
+
+        self.fullscreen_detection_ready = True
+
+
     def check_auto_pause(self) -> None:
         """
         檢查是否需要自動暫停
@@ -905,7 +923,7 @@ class Wallpaper(QWidget):
 
 
         need_auto_pause = (
-            (self.auto_pause_if_fullscreen and is_any_fullscreen(hwnd)) or
+            (self.auto_pause_if_fullscreen and self.fullscreen_detection_ready and is_any_fullscreen(hwnd)) or
             (self.auto_pause_if_screen_off and self.screen_off) or
             (self.auto_pause_if_on_battery and is_on_battery())
         )
