@@ -640,7 +640,9 @@ class Wallpaper(QWidget):
 
         self.fullscreen_detection_ready = False
 
-        QTimer.singleShot(10000, self.enable_fullscreen_detection)
+        self.desktop_ready_timer = QTimer(self)
+        self.desktop_ready_timer.timeout.connect(self.check_desktop_ready)
+        self.desktop_ready_timer.start(1000)
 
 
         # 螢幕亮滅
@@ -894,12 +896,24 @@ class Wallpaper(QWidget):
         return f"{width}:{height}"
 
 
+    def check_desktop_ready(self) -> None:
+
+        if not win32gui.FindWindow("Shell_TrayWnd", None):
+            return
+
+        self.desktop_ready_timer.stop()
+
+
+        QTimer.singleShot(10000, self.enable_fullscreen_detection)
+
+
     def enable_fullscreen_detection(self) -> None:
         """
         啟動全螢幕視窗偵測
         """
 
         self.fullscreen_detection_ready = True
+        print("fullscreen detection - ready")
 
 
     def check_auto_pause(self) -> None:
@@ -919,11 +933,14 @@ class Wallpaper(QWidget):
             return
 
 
-        hwnd = int(self.winId())
+        any_fullscreen = False
 
+        if self.fullscreen_detection_ready:
+            hwnd = int(self.winId())
+            any_fullscreen = is_any_fullscreen(hwnd)
 
         need_auto_pause = (
-            (self.auto_pause_if_fullscreen and self.fullscreen_detection_ready and is_any_fullscreen(hwnd)) or
+            (self.auto_pause_if_fullscreen and any_fullscreen) or
             (self.auto_pause_if_screen_off and self.screen_off) or
             (self.auto_pause_if_on_battery and is_on_battery())
         )
