@@ -522,6 +522,9 @@ def is_any_fullscreen(wallpaper_hwnd) -> bool:
 
         nonlocal has_fullscreen
 
+        if has_fullscreen:
+            return True
+
 
         if (
             hwnd == wallpaper_hwnd or                  # 自己不算
@@ -594,7 +597,7 @@ def is_any_fullscreen(wallpaper_hwnd) -> bool:
         )
 
 
-        return not has_fullscreen
+        return True
 
 
     win32gui.EnumWindows(enum_windows_callback, None)
