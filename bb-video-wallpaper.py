@@ -10,6 +10,7 @@ import win32con
 import win32api
 import ctypes
 from ctypes import wintypes
+import psutil
 
 from PySide6.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu
 from PySide6.QtCore import Qt, QTimer
@@ -148,6 +149,31 @@ def run_as_admin() -> None:
         input("Press Enter...")
 
         sys.exit()
+
+
+def check_desktop_ready() -> bool:
+    """
+    檢查是否登入且載入桌面
+    """
+
+    if not win32gui.FindWindow("Shell_TrayWnd", None):
+        return False
+
+
+    if not win32gui.FindWindow("Progman", None):
+        return False
+
+
+    for proc in psutil.process_iter(['name']):
+        try:
+            if proc.info['name'] and proc.info['name'].lower() == 'explorer.exe':
+                return True
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+
+
+    return False
 
 
 def is_on_battery() -> bool:
@@ -453,128 +479,128 @@ def is_on_current_desktop(hwnd: int) -> bool:
             )
 
         return bool(_virtual_desktop_manager.IsWindowOnCurrentVirtualDesktop(hwnd))  # type: ignore
-    
-    except Exception:
-        return False
-
-
-def is_fullscreen(hwnd) -> bool:
-    """
-    偵測視窗是否最大化
-    """
-
-    # 邊界容許值
-    FULLSCREEN_MARGIN = 4
-
-
-    # 隱藏視窗不算
-    if not win32gui.IsWindowVisible(hwnd):
-        return False
-
-    # 最小化視窗不算
-    if win32gui.IsIconic(hwnd):
-        return False
-
-
-    # 取得最上層視窗
-    root_hwnd = win32gui.GetAncestor(hwnd, win32con.GA_ROOT)
-
-
-    # 不在目前桌面不算
-    if not is_on_current_desktop(root_hwnd):
-        return False
-
-    # Progman 不算
-    progman = win32gui.FindWindow("Progman", "Program Manager")
-
-    if root_hwnd == progman:
-        return False
-
-    # WorkerW 不算
-    # 自己的桌面相關視窗不算
-    class_name = win32gui.GetClassName(root_hwnd)
-
-    shell_classes = {
-        "Progman",
-        "WorkerW",
-        "Shell_TrayWnd",
-        "Shell_SecondaryTrayWnd",
-    }
-
-    if class_name in shell_classes:
-        return False
-
-    # 開始功能表相關視窗不算
-    window_title = win32gui.GetWindowText(root_hwnd)
-
-    if window_title in {
-        "開始",
-        "Start",
-    }:
-        return False
-
-
-    try:
-        monitor = win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
-
-        info = win32api.GetMonitorInfo(monitor)
-
-        # info["Monitor"]: 整個螢幕, info["Work"]: 不包含工作列
-        monitor_left, monitor_top, monitor_right, monitor_bottom = info["Work"]
-
-    except Exception:
-        return False
-
-    try:
-        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
 
     except Exception:
         return False
 
 
-    return (
-        left <= monitor_left + FULLSCREEN_MARGIN and
-        top <= monitor_top + FULLSCREEN_MARGIN and
-        right >= monitor_right - FULLSCREEN_MARGIN and
-        bottom >= monitor_bottom - FULLSCREEN_MARGIN
-    )
+# 邊界容許值
+FULLSCREEN_MARGIN = 4
 
+WINDOW_TITLE_BLACKLIST = {
+    "default ime",
+    "msctfime ui",
+    "windows 輸入體驗",
 
-fullscreen_windows = set()
+    "搜尋",
+    "search",
+    "開始",
+    "start",
 
+    "工作檢視",
+    "task view",
+}
+
+SHELL_CLASSES = {
+    "Progman",
+    "WorkerW",
+    "Shell_TrayWnd",
+    "Shell_SecondaryTrayWnd",
+}
 
 def is_any_fullscreen(wallpaper_hwnd) -> bool:
     """
     偵測是否有任何視窗最大化
     """
 
-    hwnd = win32gui.GetForegroundWindow()
-
-    if (
-        hwnd == wallpaper_hwnd or               # 自己不算
-        win32gui.IsChild(wallpaper_hwnd, hwnd)  # 自己的子視窗不算
-    ):
-        hwnd = None
+    shell_hwnd = ctypes.windll.user32.GetShellWindow()
 
 
-    windows_new = set()
+    has_fullscreen = False
+
+    def enum_windows_callback(hwnd, _):
+
+        nonlocal has_fullscreen
 
 
-    if hwnd:
-        fullscreen_windows.add(hwnd)
+        if (
+            hwnd == wallpaper_hwnd or                  # 自己不算
+            win32gui.IsChild(wallpaper_hwnd, hwnd) or  # 自己的子視窗不算
+            hwnd == shell_hwnd                         # Progman不算
+        ):
+            return True
 
 
-    for h in fullscreen_windows:
-        if is_fullscreen(h):
-            windows_new.add(h)
+        # 隱藏視窗不算
+        if not win32gui.IsWindowVisible(hwnd):
+            return True
 
 
-    # 更新快取
-    fullscreen_windows.clear()
-    fullscreen_windows.update(windows_new)
+        # 最小化視窗不算
+        if win32gui.IsIconic(hwnd):
+            return True
 
 
-    return bool(fullscreen_windows)
+        # 取得最上層視窗
+        root_hwnd = win32gui.GetAncestor(hwnd, win32con.GA_ROOT)
+
+
+        # 不在目前桌面不算
+        if not is_on_current_desktop(root_hwnd):
+            return True
+
+
+        # WorkerW 不算
+        # 自己的桌面相關視窗不算
+        class_name = win32gui.GetClassName(root_hwnd)
+        if class_name in SHELL_CLASSES:
+            return True
+
+
+        # 黑名單 不算
+        root_window_title = win32gui.GetWindowText(root_hwnd).casefold().strip()
+        window_title = win32gui.GetWindowText(hwnd).casefold().strip()
+
+        if (
+            root_window_title in WINDOW_TITLE_BLACKLIST or
+            window_title in WINDOW_TITLE_BLACKLIST
+        ):
+            return True
+
+
+        try:
+            monitor = win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
+
+            info = win32api.GetMonitorInfo(monitor)
+
+            # info["Monitor"]: 整個螢幕, info["Work"]: 不包含工作列
+            monitor_left, monitor_top, monitor_right, monitor_bottom = info["Work"]
+
+        except Exception:
+            return True
+
+        try:
+            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+
+        except Exception:
+            return True
+
+
+        has_fullscreen = (
+            left <= monitor_left + FULLSCREEN_MARGIN and
+            top <= monitor_top + FULLSCREEN_MARGIN and
+            right >= monitor_right - FULLSCREEN_MARGIN and
+            bottom >= monitor_bottom - FULLSCREEN_MARGIN
+        )
+
+
+        return not has_fullscreen
+
+
+    win32gui.EnumWindows(enum_windows_callback, None)
+
+
+    return has_fullscreen
 
 
 class Wallpaper(QWidget):
@@ -639,10 +665,7 @@ class Wallpaper(QWidget):
 
 
         self.fullscreen_detection_ready = False
-
-        self.desktop_ready_timer = QTimer(self)
-        self.desktop_ready_timer.timeout.connect(self.check_desktop_ready)
-        self.desktop_ready_timer.start(1000)
+        QTimer.singleShot(10000, self.enable_fullscreen_detection)
 
 
         # 螢幕亮滅
@@ -894,17 +917,6 @@ class Wallpaper(QWidget):
         height = geometry.height()
 
         return f"{width}:{height}"
-
-
-    def check_desktop_ready(self) -> None:
-
-        if not win32gui.FindWindow("Shell_TrayWnd", None):
-            return
-
-        self.desktop_ready_timer.stop()
-
-
-        QTimer.singleShot(10000, self.enable_fullscreen_detection)
 
 
     def enable_fullscreen_detection(self) -> None:
@@ -1203,11 +1215,14 @@ class Tray:
 
 if __name__ == "__main__":
 
-    if "--task" in sys.argv:
-        # 排程啟動, 剛開機等一下
+    while True:
         time.sleep(1)
 
-    else:
+        if check_desktop_ready():
+            break
+
+
+    if "--task" not in sys.argv:
         run_as_admin()
 
 

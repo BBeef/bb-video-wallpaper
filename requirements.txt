@@ -3,3 +3,4 @@ PySide6==6.11.1
 python-vlc==3.0.21203
 pywin32==312
 comtypes==1.4.16
+psutil==7.2.2
