@@ -321,7 +321,7 @@ def get_media() -> list[Path]:
 
     return [
         p
-        for p in sorted(VIDEO_DIR.iterdir(), key=lambda p: p.name.casefold())
+        for p in sorted(VIDEO_DIR.rglob("*"), key=lambda p: p.relative_to(VIDEO_DIR).as_posix().casefold())
         if (
             p.is_file() and
             p.suffix.lower() in SUPPORTED_MEDIA_EXTENSIONS
@@ -488,6 +488,7 @@ def is_on_current_desktop(hwnd: int) -> bool:
 FULLSCREEN_MARGIN = 4
 
 WINDOW_TITLE_BLACKLIST = {
+    "",
     "default ime",
     "msctfime ui",
     "windows 輸入體驗",
@@ -528,7 +529,6 @@ def is_any_fullscreen(wallpaper_hwnd) -> bool:
 
         if (
             hwnd == wallpaper_hwnd or                  # 自己不算
-            win32gui.IsChild(wallpaper_hwnd, hwnd) or  # 自己的子視窗不算
             hwnd == shell_hwnd                         # Progman不算
         ):
             return True
@@ -544,30 +544,21 @@ def is_any_fullscreen(wallpaper_hwnd) -> bool:
             return True
 
 
-        # 取得最上層視窗
-        root_hwnd = win32gui.GetAncestor(hwnd, win32con.GA_ROOT)
-
-
         # 不在目前桌面不算
-        if not is_on_current_desktop(root_hwnd):
+        if not is_on_current_desktop(hwnd):
             return True
 
 
-        # WorkerW 不算
-        # 自己的桌面相關視窗不算
-        class_name = win32gui.GetClassName(root_hwnd)
+        # Windows Shell / 桌面相關視窗不算
+        class_name = win32gui.GetClassName(hwnd)
         if class_name in SHELL_CLASSES:
             return True
 
 
         # 黑名單 不算
-        root_window_title = win32gui.GetWindowText(root_hwnd).casefold().strip()
         window_title = win32gui.GetWindowText(hwnd).casefold().strip()
 
-        if (
-            root_window_title in WINDOW_TITLE_BLACKLIST or
-            window_title in WINDOW_TITLE_BLACKLIST
-        ):
+        if window_title in WINDOW_TITLE_BLACKLIST:
             return True
 
 
@@ -595,6 +586,10 @@ def is_any_fullscreen(wallpaper_hwnd) -> bool:
             right >= monitor_right - FULLSCREEN_MARGIN and
             bottom >= monitor_bottom - FULLSCREEN_MARGIN
         )
+
+
+        if has_fullscreen:
+            print(f"Fullscreen - {hwnd} - {window_title}")
 
 
         return True
@@ -850,7 +845,7 @@ class Wallpaper(QWidget):
         self.current_video = path
 
         config = load_config()
-        config["recentVideo"] = path.name
+        config["recentVideo"] = path.relative_to(VIDEO_DIR).as_posix()
         save_config(config)
 
 
