@@ -15,7 +15,7 @@
 
 ### 到 Releases 下載最新版
 
-- [bb-video-wallpaper-setup.exe](https://github.com/BBeef/bb-video-wallpaper/releases)
+- [bb-video-wallpaper-setup.exe](https://github.com/BeefBB/bb-video-wallpaper/releases)
 
 # 使用
 
